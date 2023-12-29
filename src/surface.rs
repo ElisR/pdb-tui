@@ -1,8 +1,6 @@
-use crate::read::get_meshes_from_obj;
 use nalgebra::Unit;
 use nalgebra::{Matrix4, Vector4};
 use std::clone::Clone;
-use std::path::Path;
 use tobj::Mesh;
 
 #[derive(PartialEq, Debug)]
@@ -11,13 +9,14 @@ pub struct AABB {
     pub max: Vector4<f32>,
 }
 
+/// Axis-aligned bounding box
 impl AABB {
     pub fn new(min: Vector4<f32>, max: Vector4<f32>) -> AABB {
         AABB { min, max }
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Triangle {
     pub color: (u8, u8, u8),
     pub v1: Vector4<f32>,
@@ -28,34 +27,35 @@ pub struct Triangle {
 impl Triangle {
     pub fn aabb(&self) -> AABB {
         AABB::new(
-            Vector4::from_fn(|x, _size| self.v1[x].min(self.v2[x].min(self.v3[x]))),
-            Vector4::from_fn(|x, _size| self.v1[x].max(self.v2[x].max(self.v3[x]))),
+            Vector4::from_fn(|i, _size| self.v1[i].min(self.v2[i].min(self.v3[i]))),
+            Vector4::from_fn(|i, _size| self.v1[i].max(self.v2[i].max(self.v3[i]))),
         )
     }
-    pub fn mul(&mut self, transform: Matrix4<f32>) -> &mut Triangle {
+    /// Transform and mutate the triangle
+    pub fn mul(&mut self, transform: Matrix4<f32>) -> &mut Self {
         self.v1 = transform * self.v1;
         self.v2 = transform * self.v2;
         self.v3 = transform * self.v3;
         self
     }
-    pub fn normal(&self) -> Unit<Vector4<f32>> {
-        let v1 = self.v2 - self.v1;
-        let v2 = self.v3 - self.v1;
-        let x = (v1[1] * v2[2]) - (v1[2] * v2[1]);
-        let y = (v1[2] * v2[0]) - (v1[0] * v2[2]);
-        let z = (v1[0] * v2[1]) - (v1[1] * v2[0]);
-        Unit::new_normalize(Vector4::new(x, y, z, 0.0))
-    }
-}
-
-impl Clone for Triangle {
-    fn clone(&self) -> Triangle {
-        Triangle {
+    /// Transform a triangle and return a new copy
+    pub fn new_mul(&self, transform: Matrix4<f32>) -> Self {
+        Self {
             color: self.color,
-            v1: self.v1,
-            v2: self.v2,
-            v3: self.v3,
+            v1: transform * self.v1,
+            v2: transform * self.v2,
+            v3: transform * self.v3,
         }
+    }
+    pub fn normal(&self) -> Unit<Vector4<f32>> {
+        // Two triangle edges
+        let u1 = self.v2 - self.v1;
+        let u2 = self.v3 - self.v1;
+        // Cross product
+        let x = (u1[1] * u2[2]) - (u1[2] * u2[1]);
+        let y = (u1[2] * u2[0]) - (u1[0] * u2[2]);
+        let z = (u1[0] * u2[1]) - (u1[1] * u2[0]);
+        Unit::new_normalize(Vector4::new(x, y, z, 0.0))
     }
 }
 
@@ -111,6 +111,8 @@ impl ToSimpleMesh for Mesh {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::read::get_meshes_from_obj;
+    use std::path::Path;
 
     // Stupid test just to check that vector indexing works as expected
     #[test]
