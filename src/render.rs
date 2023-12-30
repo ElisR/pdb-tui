@@ -180,37 +180,45 @@ impl Default for Scene {
     }
 }
 
-fn clip_to_pixel(clip_coord: f32, pixels: u16) -> f32 {
-    // TODO Put fancier logic in here
-    (clip_coord + 1.0) / 2.0 * pixels as f32
+/// Convert from clip space to pixel space
+/// Will return values outside of range `0..pixels` if value is outside range `-1.0..1.0`
+/// TODO Check for weird behaviour if output is below range of u16
+/// NOTE Might want to use `i32` instead
+fn clip_to_pixel(clip_coord: f32, pixels: u16) -> u16 {
+    let pixel_width = 2.0 / pixels as f32;
+    ((clip_coord + 1.0) / pixel_width).floor() as u16
+}
+
+/// Convert from the centre of a pixel to clip space
+/// Will return value outside range if `pixel >= pixels` or `pixel < 0`
+fn pixel_to_clip(pixel: u16, pixels: u16) -> f32 {
+    let pixel_width = 2.0 / pixels as f32;
+    (pixel as f32) * pixel_width + pixel_width / 2.0 - 1.0
 }
 
 /// Go from AABB, assumed to be in clip space, to x and y pixel ranges
 fn get_pixel_ranges_from_aabb(aabb: AABB, width: u16, height: u16) -> (u16, u16, u16, u16) {
-    // TODO Fix this disgusting logic
-    let x_min = clip_to_pixel(aabb.min[0], width)
-        .floor()
-        .max(width as f32)
-        .min(0.0) as u16;
-    let y_min = clip_to_pixel(aabb.min[1], height)
-        .floor()
-        .max(width as f32)
-        .min(0.0) as u16;
-    let x_max = clip_to_pixel(aabb.max[0], width)
-        .ceil()
-        .max(height as f32)
-        .min(0.0) as u16;
-    let y_max = clip_to_pixel(aabb.max[1], width)
-        .ceil()
-        .max(height as f32)
-        .min(0.0) as u16;
+    // TODO Validate this max and min logic, don't want to give conservative range
+    let x_min = clip_to_pixel(aabb.min[0], width).max(width).min(0);
+    let y_min = clip_to_pixel(aabb.min[1], height).max(height).min(0);
+    let x_max = clip_to_pixel(aabb.max[0], width).max(width).min(0);
+    let y_max = clip_to_pixel(aabb.max[1], height).max(height).min(0);
     (x_min, x_max, y_min, y_max)
 }
+
+/// Finding the 1/z value where triangle and ray intersect
+/// If 1/z == 0.0 then there is no intersection
+// fn triange_pixel_collide_z(tri: &Triangle, x: f32, y: f32) -> f32 {
+
+// }
 
 fn draw_mesh_to_canvas(mesh: SimpleMesh, scene: Scene, canvas: Canvas) {
     let view_projection = scene.projection.as_matrix() * scene.view;
     for tri in mesh.triangles.iter() {
-        let intensity: f32 = scene.lights.iter().map(|l| tri.normal().dot(l)).sum();
+        let intensity: f32 = scene
+            .lights
+            .iter()
+            .fold(0.0, |i, l| i + tri.normal().dot(l));
         let tri_clip = tri.new_mul(view_projection);
         let tri_clip_aabb = tri_clip.aabb();
 
@@ -219,8 +227,11 @@ fn draw_mesh_to_canvas(mesh: SimpleMesh, scene: Scene, canvas: Canvas) {
 
         for x in x_min..x_max {
             for y in y_min..y_max {
+                let x_clip = pixel_to_clip(x, canvas.width);
+                let y_clip = pixel_to_clip(y, canvas.height);
                 // TODO Calculate ray for x and y then check for collisions with triangle
                 // NOTE Probably have to use barycentric coordinates
+                // NOTE Probably better to just use some predefined collision detection algorithms
             }
         }
     }
@@ -234,9 +245,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_clip_to_pixel() {
+        let pixels: u16 = 10;
+        assert_eq!(clip_to_pixel(-1.0 + 0.1, pixels), 0);
+        assert_eq!(clip_to_pixel(-1.0 + 0.21, pixels), 1);
+        assert_eq!(clip_to_pixel(-1.0 + 1.99, pixels), 9);
+    }
+    #[test]
+    fn test_pixel_to_clip() {
+        let pixels: u16 = 10;
+        assert!((pixel_to_clip(0, pixels) - -0.9f32).abs() <= f32::EPSILON);
+        assert!((pixel_to_clip(1, pixels) - -0.7f32).abs() <= f32::EPSILON);
+        assert!((pixel_to_clip(9, pixels) - 0.9f32).abs() <= f32::EPSILON);
+    }
+    #[test]
     fn test_rasterizer() {
         let rasterizer = BasicAsciiRasterizer::default();
-
         assert_eq!(rasterizer.pixel_to_char(0.15), '.');
         assert_eq!(rasterizer.pixel_to_char(0.65), '*');
         assert_eq!(rasterizer.pixel_to_char(0.85), '%');
