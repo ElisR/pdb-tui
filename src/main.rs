@@ -4,6 +4,14 @@
 // use nalgebra::Vector4;
 // use pdb_tui::render::create_ray;
 // use pdbtbx::*;
+use image::GrayImage;
+use pdb_tui::rasterizer::BasicAsciiRasterizer;
+use pdb_tui::read::get_meshes_from_obj;
+use pdb_tui::render::{draw_trimesh_to_canvas, Canvas, Scene};
+use pdb_tui::surface::ToTriMesh;
+
+use std::path::Path;
+use std::time::Instant;
 
 fn main() {
     // Playing around with lines
@@ -19,6 +27,43 @@ fn main() {
     // TODO Set up scene and render
 
     // TODO Look into Termion for a way to render PDB
+
+    let test_obj = "./data/surface.obj";
+    assert!(Path::new(test_obj).exists());
+
+    // let (models, _materials) = tobj::load_obj(test_obj, &tobj::LoadOptions::default())
+    //     .expect("Failed to OBJ load file");
+    let meshes = get_meshes_from_obj(test_obj);
+    let mesh = &meshes[0];
+    let mesh = mesh.to_tri_mesh();
+
+    let scene = Scene::default();
+
+    let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
+
+    let now = Instant::now();
+    println!("Starting to draw.");
+    draw_trimesh_to_canvas(&mesh, &scene, &mut canvas);
+    let new_now = Instant::now();
+    println!("Drawn after {:?}", new_now.duration_since(now));
+
+    // Print output to stdout
+    // let frame_buffer = canvas.frame_buffer.clone();
+    // let stdout: String = frame_buffer.iter().collect();
+    // print!("{}", stdout);
+
+    let pixels_transformed = canvas
+        .pixel_buffer
+        .iter()
+        .map(|i| (i * 255.0).round() as u8)
+        .collect();
+    let image_buffer = GrayImage::from_raw(
+        canvas.width as u32,
+        canvas.height as u32,
+        pixels_transformed,
+    )
+    .unwrap();
+    image_buffer.save("canvas.png").unwrap();
 }
 
 // TODO Add some tests for basic things

@@ -1,5 +1,6 @@
 /// Simple rasterizer that assigns one ASCII character per pixel intensity.
 /// Doesn't care about shapes of the pixels.
+#[derive(Clone)]
 pub struct BasicAsciiRasterizer {
     gradient: Vec<char>,
     ranges: Vec<(f32, f32)>,
@@ -56,12 +57,12 @@ impl Default for BasicAsciiRasterizer {
 }
 
 pub trait Rasterizer {
-    fn pixels_to_stdout(&self, pixels: Vec<Vec<f32>>) -> Vec<char>;
+    fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char>;
 }
 
 impl Rasterizer for BasicAsciiRasterizer {
-    fn pixels_to_stdout(&self, pixels: Vec<Vec<f32>>) -> Vec<char> {
-        let mut out: Vec<char> = vec![];
+    fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char> {
+        let mut out: Vec<char> = Vec::with_capacity(pixels.len());
         for row in pixels.iter() {
             for pixel in row.iter() {
                 let ascii = self.pixel_to_char(*pixel);

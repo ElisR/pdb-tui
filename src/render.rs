@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use crate::rasterizer::Rasterizer;
 // use std::ops::Range;
 // Create a the surface from a PDB file
 // use crate::surface::SimpleMesh;
@@ -15,8 +16,8 @@ use parry3d::shape::TriMesh;
 
 // Constants for playing around with rendering
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
-const SCREEN_PIXELS_X: u16 = 800;
-const SCREEN_PIXELS_Y: u16 = 450;
+const SCREEN_PIXELS_X: usize = 1600;
+const SCREEN_PIXELS_Y: usize = 900;
 const FOV: f32 = std::f32::consts::PI / 4.0; // Radians
 
 // Calculate the dot product of a triangle's normal with a ray coming from the camera
@@ -49,16 +50,48 @@ pub enum CanvasError {
 }
 
 // Where pixels will be printed
-pub struct Canvas {
-    pub frame_buffer: Vec<(char, (u8, u8, u8))>,
+pub struct Canvas<R: Rasterizer> {
+    pub frame_buffer: Vec<char>,
     pub pixel_buffer: Vec<f32>,
     pub toi_buffer: Vec<f32>,
     pub width: usize,
     pub height: usize,
+    pub rasterizer: R,
 }
-impl Canvas {
+impl<R: Rasterizer + Default> Canvas<R> {
+    /// Constructor for canvas
+    pub fn new(width: usize, height: usize) -> Self {
+        let size = width * height;
+        let frame_buffer = vec![' '; size];
+        let pixel_buffer = vec![0f32; size];
+        // FIXME Replace with proper TOI default
+        let toi_buffer = vec![0f32; size];
+        // TODO Allow custom rasterizer to be passed into constructor
+        let rasterizer = R::default();
+        Canvas {
+            frame_buffer,
+            pixel_buffer,
+            toi_buffer,
+            width,
+            height,
+            rasterizer,
+        }
+    }
+}
+
+impl<R: Rasterizer> Canvas<R> {
+    /// Update the frame buffer with whatever the pixel buffer is set to
+    pub fn update_frame(&mut self) {
+        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
+    }
+
+    /// Reshape the vector of pixels to a 2D vector that can be accepted by `Rasterizer`
+    fn reshaped_pixels(&self) -> Vec<&[f32]> {
+        self.pixel_buffer.chunks(self.width).collect()
+    }
+
     /// Utility function for calculating index, given pixel location
-    pub fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
+    fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
         if x < self.width && y < self.width {
             Ok(x * self.width + y)
@@ -73,6 +106,21 @@ impl Canvas {
             }
             Err(_e) => {}
         }
+    }
+
+    pub fn set_toi(&mut self, x: usize, y: usize, toi: f32) {
+        match self.pixel_to_index(x, y) {
+            Ok(idx) => {
+                self.toi_buffer[idx] = toi;
+            }
+            Err(_e) => {}
+        }
+    }
+}
+
+impl<R: Rasterizer + Default> Default for Canvas<R> {
+    fn default() -> Self {
+        Canvas::new(SCREEN_PIXELS_X, SCREEN_PIXELS_Y)
     }
 }
 
@@ -148,43 +196,12 @@ fn get_pixel_ranges_from_aabb(
     (x_min, x_max, y_min, y_max)
 }
 
-/// Finding the 1/z value where triangle and ray intersect
-/// If 1/z == 0.0 then there is no intersection
-// fn triange_pixel_collide_z(tri: &Triangle, x: f32, y: f32) -> f32 {
-
-// }
-
-// fn draw_mesh_to_canvas(mesh: SimpleMesh, scene: Scene, canvas: Canvas) {
-//     let view_projection = scene.projection.as_matrix() * scene.view;
-//     for tri in mesh.triangles.iter() {
-//         let intensity: f32 = scene
-//             .lights
-//             .iter()
-//             .fold(0.0, |i, l| i + tri.normal().dot(l));
-//         let tri_clip = tri.new_mul(view_projection);
-//         let tri_clip_aabb = tri_clip.aabb();
-
-//         let (x_min, x_max, y_min, y_max) =
-//             get_pixel_ranges_from_aabb(tri_clip_aabb, canvas.width, canvas.height);
-
-//         for x in x_min..x_max {
-//             for y in y_min..y_max {
-//                 let x_clip = pixel_to_clip(x, canvas.width);
-//                 let y_clip = pixel_to_clip(y, canvas.height);
-//                 // TODO Calculate ray for x and y then check for collisions with triangle
-//                 // NOTE Probably have to use barycentric coordinates
-//                 // NOTE Probably better to just use some predefined collision detection algorithms
-//             }
-//         }
-//     }
-
-//     // TODO For each triangle, loop through the pixels in its AABB and check for ray collision
-//     // If there is a collision, calculate z of collision and only update if smaller than existing buffer
-// }
-
-fn draw_trimesh_to_canvas(mesh: TriMesh, scene: &Scene, canvas: &mut Canvas) {
+pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
+    mesh: &TriMesh,
+    scene: &Scene,
+    canvas: &mut Canvas<R>,
+) {
     // TODO Define the model transformation somewhere
-
     for x in 0..canvas.width {
         for y in 0..canvas.width {
             let x_clip = pixel_to_clip(x, canvas.width);
@@ -200,17 +217,25 @@ fn draw_trimesh_to_canvas(mesh: TriMesh, scene: &Scene, canvas: &mut Canvas) {
                 let normal = ri.normal;
                 let intensity: f32 = scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));
                 canvas.set_pixel(x, y, intensity);
-                // canvas.set_toi(x, y, ri.toi);
+                canvas.set_toi(x, y, ri.toi);
             }
         }
     }
+    canvas.update_frame()
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::rasterizer::BasicAsciiRasterizer;
+    use crate::read::get_meshes_from_obj;
+    use crate::surface::ToTriMesh;
+
     use super::*;
+    use std::path::Path;
 
     #[test]
+    /// Test that checks conversion from clip coordinates to pixels
+    /// Test cases were scrutinised in separate text file.
     fn test_clip_to_pixel() {
         let pixels = 10;
         assert_eq!(clip_to_pixel(-1.0 + 0.1, pixels), 0);
@@ -218,6 +243,8 @@ mod tests {
         assert_eq!(clip_to_pixel(-1.0 + 1.99, pixels), 9);
     }
     #[test]
+    /// Test that checks conversion from pixel to clip coordinates
+    /// Test cases were scrutinised in separate text file.
     fn test_pixel_to_clip() {
         let pixels = 10;
         assert!((pixel_to_clip(0, pixels) - -0.9f32).abs() <= f32::EPSILON);
@@ -226,7 +253,22 @@ mod tests {
     }
 
     #[test]
+    /// Test that loads in a mesh then renders it in a single position.
     fn test_drawing() {
-        // TODO Write test that loads in mesh, then renders it in a single position
+        let test_obj = "./data/surface.obj";
+        assert!(Path::new(test_obj).exists());
+
+        // let (models, _materials) = tobj::load_obj(test_obj, &tobj::LoadOptions::default())
+        //     .expect("Failed to OBJ load file");
+        let meshes = get_meshes_from_obj(test_obj);
+        let mesh = &meshes[0];
+        let mesh = mesh.to_tri_mesh();
+
+        let scene = Scene::default();
+
+        // TODO Create canvas
+        let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
+
+        draw_trimesh_to_canvas(&mesh, &scene, &mut canvas);
     }
 }
