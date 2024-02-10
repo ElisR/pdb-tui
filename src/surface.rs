@@ -1,5 +1,6 @@
 use nalgebra::Unit;
-use nalgebra::{Matrix4, Vector4};
+use nalgebra::{Matrix4, Point3, Vector4};
+use parry3d::shape::TriMesh;
 use std::clone::Clone;
 use tobj::Mesh;
 
@@ -39,7 +40,7 @@ impl Triangle {
         self
     }
     /// Transform a triangle and return a new copy
-    pub fn new_mul(&self, transform: Matrix4<f32>) -> Self {
+    pub fn new_mul(self, transform: Matrix4<f32>) -> Self {
         Self {
             color: self.color,
             v1: transform * self.v1,
@@ -105,6 +106,22 @@ impl ToSimpleMesh for Mesh {
             triangles,
             bounding_box,
         }
+    }
+}
+
+/// Using the `parry` implementation of meshes
+pub trait ToTriMesh {
+    fn to_tri_mesh(&self) -> TriMesh;
+}
+impl ToTriMesh for Mesh {
+    fn to_tri_mesh(&self) -> TriMesh {
+        let indices: Vec<[u32; 3]> = self.indices.chunks(3).map(|t| [t[0], t[1], t[2]]).collect();
+        let positions: Vec<Point3<f32>> = self
+            .positions
+            .chunks(3)
+            .map(|t| Point3::new(t[0], t[1], t[2]))
+            .collect();
+        TriMesh::new(positions, indices)
     }
 }
 

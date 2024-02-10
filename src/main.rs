@@ -1,12 +1,14 @@
+#![allow(dead_code)]
+
 // use pdb_tui::read::PDBStructure;
 // use nalgebra::Vector4;
-use pdb_tui::render::create_line;
+// use pdb_tui::render::create_ray;
 // use pdbtbx::*;
 
 fn main() {
     // Playing around with lines
-    let line = create_line(10.0f32, 20.0f32);
-    println!("{}", line)
+    // let line = create_ray(10.0f32, 20.0f32);
+    // println!("{}", line)
 
     // TODO Load in a PDB file
 
