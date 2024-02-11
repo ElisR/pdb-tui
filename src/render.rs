@@ -7,7 +7,7 @@ use nalgebra::Perspective3;
 use nalgebra::Point3;
 // use nalgebra::Unit;
 // use nalgebra::UnitVector3;
-use nalgebra::{Matrix4, Vector3, Vector4};
+use nalgebra::{Matrix4, Vector3};
 // use pdbtbx::PDB;
 use parry3d::query::Ray;
 use parry3d::query::RayCast;
@@ -15,8 +15,8 @@ use parry3d::shape::TriMesh;
 
 // Constants for playing around with rendering
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
-const SCREEN_PIXELS_X: usize = 1600;
-const SCREEN_PIXELS_Y: usize = 900;
+const SCREEN_PIXELS_X: usize = 320;
+const SCREEN_PIXELS_Y: usize = 180;
 const FOV: f32 = std::f32::consts::PI / 4.0; // Radians
 
 pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) {
@@ -150,7 +150,10 @@ impl Default for Scene {
         let eye = Point3::new(0.0f32, 0.0f32, -10.0f32);
         let target = Point3::new(0.0f32, 0.0f32, 0.0f32);
         let up = Vector3::new(0.0f32, 1.0f32, 0.0f32);
-        let lights = vec![Vector3::new(0.0f32, -1.0f32, 1.0f32)];
+        let lights = vec![
+            0.7 * Vector3::new(0.0f32, -1.0f32, 1.0f32),
+            // Vector3::new(0.0f32, -1.0f32, -1.0f32),
+        ];
         let znear = 1.0f32;
         let zfar = 100.0f32;
         Self::new(&eye, &target, &up, &lights, znear, zfar)
@@ -190,6 +193,7 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
             // FIXME Make sure max_toi is reasonable
             let toi_result =
                 mesh.cast_local_ray_and_get_normal(&ray, scene.projection.zfar() + 100.0, true);
+            // TODO Consider whether we should take `abs` of intensity
             if let Some(ri) = toi_result {
                 let normal = ri.normal;
                 let intensity: f32 = scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));

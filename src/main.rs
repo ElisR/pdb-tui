@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use image::GrayImage;
+use nalgebra::{Isometry3, Translation3, UnitQuaternion};
 use pdb_tui::rasterizer::BasicAsciiRasterizer;
 use pdb_tui::read::get_meshes_from_obj;
 use pdb_tui::render::{draw_trimesh_to_canvas, Canvas, Scene};
@@ -31,7 +32,13 @@ fn main() {
     //     .expect("Failed to OBJ load file");
     let meshes = get_meshes_from_obj(test_obj);
     let mesh = &meshes[0];
-    let mesh = mesh.to_tri_mesh();
+    let mut mesh = mesh.to_tri_mesh();
+
+    // TODO Work out why the y axis differs from expected by up
+    let translation = Translation3::new(15.0f32, 10.0f32, 0.0f32);
+    let rotation = UnitQuaternion::identity();
+    let transform = Isometry3::from_parts(translation, rotation);
+    mesh.transform_vertices(&transform);
 
     let scene = Scene::default();
 
@@ -44,9 +51,9 @@ fn main() {
     println!("Drawn after {:?}", new_now.duration_since(now));
 
     // Print output to stdout
-    // let frame_buffer = canvas.frame_buffer.clone();
-    // let stdout: String = frame_buffer.iter().collect();
-    // print!("{}", stdout);
+    let frame_buffer = canvas.frame_buffer.clone();
+    let stdout: String = frame_buffer.iter().collect();
+    print!("{}", stdout);
 
     let pixels_transformed = canvas
         .pixel_buffer
