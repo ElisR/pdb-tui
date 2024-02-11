@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use image::GrayImage;
 use nalgebra::{Isometry3, Translation3, UnitQuaternion};
 use pdb_tui::rasterizer::BasicAsciiRasterizer;
 use pdb_tui::read::get_meshes_from_obj;
@@ -35,7 +34,7 @@ fn main() {
     let mut mesh = mesh.to_tri_mesh();
 
     // TODO Work out why the y axis differs from expected by up
-    let translation = Translation3::new(15.0f32, 10.0f32, 0.0f32);
+    let translation = Translation3::new(15.0f32, 10.0f32, -20.0f32);
     let rotation = UnitQuaternion::identity();
     let transform = Isometry3::from_parts(translation, rotation);
     mesh.transform_vertices(&transform);
@@ -55,18 +54,7 @@ fn main() {
     let stdout: String = frame_buffer.iter().collect();
     print!("{}", stdout);
 
-    let pixels_transformed = canvas
-        .pixel_buffer
-        .iter()
-        .map(|i| (i * 255.0).round() as u8)
-        .collect();
-    let image_buffer = GrayImage::from_raw(
-        canvas.width as u32,
-        canvas.height as u32,
-        pixels_transformed,
-    )
-    .unwrap();
-    image_buffer.save("canvas.png").unwrap();
+    canvas.save_image("canvas.png").unwrap();
 }
 
 // TODO Add some tests for basic things

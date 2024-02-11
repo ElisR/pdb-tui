@@ -1,5 +1,9 @@
 #![allow(dead_code)]
+use std::path::Path;
+
 use crate::rasterizer::Rasterizer;
+use image::GrayImage;
+use image::ImageResult;
 // use std::ops::Range;
 // Create a the surface from a PDB file
 // use crate::surface::SimpleMesh;
@@ -48,17 +52,22 @@ pub struct Canvas<R: Rasterizer> {
     pub width: usize,
     pub height: usize,
     pub rasterizer: R,
+    /// Pixel intensity used for the background
+    pub bg_pixel: f32,
 }
 impl<R: Rasterizer + Default> Canvas<R> {
     /// Constructor for canvas
     pub fn new(width: usize, height: usize) -> Self {
-        let size = width * height;
-        let frame_buffer = vec![' '; size];
-        let pixel_buffer = vec![0f32; size];
-        // FIXME Replace with proper TOI default
-        let toi_buffer = vec![0f32; size];
+        let bg_pixel = 1.1f32;
+
         // TODO Allow custom rasterizer to be passed into constructor
         let rasterizer = R::default();
+
+        let size = width * height;
+        let frame_buffer = vec![rasterizer.get_bg_char(); size];
+        let pixel_buffer = vec![bg_pixel; size];
+        // FIXME Replace with proper TOI default
+        let toi_buffer = vec![0f32; size];
         Canvas {
             frame_buffer,
             pixel_buffer,
@@ -66,6 +75,7 @@ impl<R: Rasterizer + Default> Canvas<R> {
             width,
             height,
             rasterizer,
+            bg_pixel,
         }
     }
 }
@@ -106,6 +116,21 @@ impl<R: Rasterizer> Canvas<R> {
             }
             Err(_e) => {}
         }
+    }
+
+    /// Wrapper for saving image. Filetype will be inferred from path
+    pub fn save_image<Q>(&self, path: Q) -> ImageResult<()>
+    where
+        Q: AsRef<Path>,
+    {
+        let pixels_transformed = self
+            .pixel_buffer
+            .iter()
+            .map(|i| (i * 255.0).round() as u8)
+            .collect();
+        let image_buffer =
+            GrayImage::from_raw(self.width as u32, self.height as u32, pixels_transformed).unwrap();
+        image_buffer.save(path)
     }
 }
 
@@ -194,6 +219,7 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
             let toi_result =
                 mesh.cast_local_ray_and_get_normal(&ray, scene.projection.zfar() + 100.0, true);
             // TODO Consider whether we should take `abs` of intensity
+            // FIXME Make sure background is returned if no collision
             if let Some(ri) = toi_result {
                 let normal = ri.normal;
                 let intensity: f32 = scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));

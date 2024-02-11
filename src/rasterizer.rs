@@ -47,23 +47,32 @@ impl BasicAsciiRasterizer {
 
 impl Default for BasicAsciiRasterizer {
     fn default() -> Self {
+        let mut gradient = vec!['.', ':', '-', '=', '+', '*', '#', '%', '@'];
+        gradient.reverse();
+        let background = '@';
         BasicAsciiRasterizer::new(
-            vec!['.', ':', '-', '=', '+', '*', '#', '%', '@'],
+            gradient,
             vec![0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            ' ',
+            background,
         )
         .unwrap()
     }
 }
 
 pub trait Rasterizer {
+    // Convert a vector of slices of pixels to a vector of characters to be printed to the terminal
     fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char>;
+
+    /// Get the character used for the background
+    fn get_bg_char(&self) -> char;
 }
 
 impl Rasterizer for BasicAsciiRasterizer {
     fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char> {
         let mut out: Vec<char> = Vec::with_capacity(pixels.len());
-        for row in pixels.iter() {
+        // FIXME Find a better way to avoid stretching image
+        // Crude hack to account for height of font character being bigger than width
+        for row in pixels.iter().step_by(2) {
             for pixel in row.iter() {
                 let ascii = self.pixel_to_char(*pixel);
                 out.push(ascii);
@@ -71,6 +80,10 @@ impl Rasterizer for BasicAsciiRasterizer {
             out.push('\n');
         }
         out
+    }
+
+    fn get_bg_char(&self) -> char {
+        self.background
     }
 }
 
