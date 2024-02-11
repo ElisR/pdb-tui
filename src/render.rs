@@ -85,7 +85,7 @@ impl<R: Rasterizer> Canvas<R> {
     fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
         if x < self.width && y < self.width {
-            Ok(x * self.width + y)
+            Ok(y * self.width + x)
         } else {
             Err(CanvasError::PixelOutOfRange { x, y })
         }
