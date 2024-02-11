@@ -3,7 +3,6 @@ use crate::rasterizer::Rasterizer;
 // use std::ops::Range;
 // Create a the surface from a PDB file
 // use crate::surface::SimpleMesh;
-use crate::surface::{Triangle, AABB};
 use nalgebra::Perspective3;
 use nalgebra::Point3;
 // use nalgebra::Unit;
@@ -19,14 +18,6 @@ const ASPECT_RATIO: f32 = 16.0 / 9.0;
 const SCREEN_PIXELS_X: usize = 1600;
 const SCREEN_PIXELS_Y: usize = 900;
 const FOV: f32 = std::f32::consts::PI / 4.0; // Radians
-
-// Calculate the dot product of a triangle's normal with a ray coming from the camera
-// TODO Look into doing this where everything is turned into a slice instead
-// TODO Change this so that camera always points along -z axis
-pub fn orient(tri: &Triangle, ray: &Vector4<f32>) -> f32 {
-    let normal = tri.normal();
-    normal.dot(ray)
-}
 
 pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) {
     // Compute two points in clip-space.
@@ -180,20 +171,6 @@ fn clip_to_pixel(clip_coord: f32, pixels: usize) -> usize {
 fn pixel_to_clip(pixel: usize, pixels: usize) -> f32 {
     let pixel_width = 2.0 / pixels as f32;
     (pixel as f32) * pixel_width + pixel_width / 2.0 - 1.0
-}
-
-/// Go from AABB, assumed to be in clip space, to x and y pixel ranges
-fn get_pixel_ranges_from_aabb(
-    aabb: AABB,
-    width: usize,
-    height: usize,
-) -> (usize, usize, usize, usize) {
-    // TODO Validate this max and min logic, don't want to give conservative range
-    let x_min = clip_to_pixel(aabb.min[0], width).max(width).min(0);
-    let y_min = clip_to_pixel(aabb.min[1], height).max(height).min(0);
-    let x_max = clip_to_pixel(aabb.max[0], width).max(width).min(0);
-    let y_max = clip_to_pixel(aabb.max[1], height).max(height).min(0);
-    (x_min, x_max, y_min, y_max)
 }
 
 pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(

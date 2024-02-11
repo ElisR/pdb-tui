@@ -1,9 +1,5 @@
 #![allow(dead_code)]
 
-// use pdb_tui::read::PDBStructure;
-// use nalgebra::Vector4;
-// use pdb_tui::render::create_ray;
-// use pdbtbx::*;
 use image::GrayImage;
 use pdb_tui::rasterizer::BasicAsciiRasterizer;
 use pdb_tui::read::get_meshes_from_obj;
