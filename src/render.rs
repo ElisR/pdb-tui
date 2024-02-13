@@ -230,7 +230,7 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
 ) {
     // TODO Define the model transformation somewhere
     for x in 0..canvas.width {
-        for y in 0..canvas.width {
+        for y in 0..canvas.height {
             let x_clip = pixel_to_clip(x, canvas.width);
             let y_clip = pixel_to_clip(y, canvas.height);
 
