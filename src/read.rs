@@ -6,14 +6,20 @@ pub struct PDBStructure {
 }
 
 // TODO Make this return a Result type
-pub fn get_models_from_obj(path: &str) -> Vec<Model> {
-    assert!(Path::new(path).exists());
+pub fn get_models_from_obj<Q>(path: Q) -> Vec<Model>
+where
+    Q: AsRef<Path>,
+{
+    assert!(path.as_ref().exists());
     let (models, _materials) =
-        load_obj(path, &LoadOptions::default()).expect("Failed to OBJ load file");
+        load_obj(path.as_ref(), &LoadOptions::default()).expect("Failed to OBJ load file");
     models
 }
 
-pub fn get_meshes_from_obj(path: &str) -> Vec<Mesh> {
+pub fn get_meshes_from_obj<Q>(path: Q) -> Vec<Mesh>
+where
+    Q: AsRef<Path>,
+{
     let models = get_models_from_obj(path);
     models.into_iter().map(|model| model.mesh).collect()
 }

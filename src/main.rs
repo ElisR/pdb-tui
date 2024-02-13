@@ -25,10 +25,6 @@ fn main() {
     // TODO Look into Termion for a way to render PDB
 
     let test_obj = "./data/surface.obj";
-    assert!(Path::new(test_obj).exists());
-
-    // let (models, _materials) = tobj::load_obj(test_obj, &tobj::LoadOptions::default())
-    //     .expect("Failed to OBJ load file");
     let meshes = get_meshes_from_obj(test_obj);
     let mesh = &meshes[0];
     let mut mesh = mesh.to_tri_mesh();
