@@ -29,8 +29,14 @@ pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) 
     let far_ndc_point = Point3::new(x, y, 1.0);
 
     // Unproject them to view-space.
-    let near_view_point = scene.projection.unproject_point(&near_ndc_point);
-    let far_view_point = scene.projection.unproject_point(&far_ndc_point);
+    let near_view_point = scene
+        .scene_projection
+        .perspective
+        .unproject_point(&near_ndc_point);
+    let far_view_point = scene
+        .scene_projection
+        .perspective
+        .unproject_point(&far_ndc_point);
 
     // Compute the view-space line parameters.
     let line_location = near_view_point;
@@ -49,6 +55,7 @@ pub struct Canvas<R: Rasterizer> {
     pub frame_buffer: Vec<char>,
     pub pixel_buffer: Vec<f32>,
     pub toi_buffer: Vec<f32>,
+    // TODO Don't make these public, so that they can't be trivially updated and break buffer sizes
     pub width: usize,
     pub height: usize,
     pub rasterizer: R,
@@ -66,8 +73,7 @@ impl<R: Rasterizer + Default> Canvas<R> {
         let size = width * height;
         let frame_buffer = vec![rasterizer.get_bg_char(); size];
         let pixel_buffer = vec![bg_pixel; size];
-        // FIXME Replace with proper TOI default
-        let toi_buffer = vec![0f32; size];
+        let toi_buffer = vec![f32::MAX; size];
         Canvas {
             frame_buffer,
             pixel_buffer,
@@ -140,6 +146,26 @@ impl<R: Rasterizer + Default> Default for Canvas<R> {
     }
 }
 
+/// Wrapper struct holding the projection information defining the frustrum shape
+pub struct SceneProjection {
+    pub perspective: Perspective3<f32>,
+}
+impl SceneProjection {
+    fn new(znear: f32, zfar: f32, aspect_ratio: f32, fovy: f32) -> Self {
+        let perspective = Perspective3::new(aspect_ratio, fovy, znear, zfar);
+        SceneProjection { perspective }
+    }
+}
+impl Default for SceneProjection {
+    fn default() -> Self {
+        let znear = 1.0f32;
+        let zfar = 100.0f32;
+        let aspect_ratio = ASPECT_RATIO;
+        let fovy = FOV;
+        Self::new(znear, zfar, aspect_ratio, fovy)
+    }
+}
+
 /// Holding geometric objects related to rendering
 ///
 /// Holds camera position relative to world coordinates
@@ -147,26 +173,23 @@ impl<R: Rasterizer + Default> Default for Canvas<R> {
 pub struct Scene {
     pub view: Matrix4<f32>,
     pub lights: Vec<Vector3<f32>>,
-    pub projection: Perspective3<f32>,
+    pub scene_projection: SceneProjection,
 }
 impl Scene {
-    // TODO Work out the best way to pass lights: reference or directly
     fn new(
         eye: &Point3<f32>,
         target: &Point3<f32>,
         up: &Vector3<f32>,
         lights: &[Vector3<f32>],
-        znear: f32,
-        zfar: f32,
+        projection: SceneProjection,
     ) -> Self {
         let view = Matrix4::face_towards(eye, target, up);
         let lights = lights.to_owned();
         // TODO Swap out global aspect ratio and fov for something else
-        let projection = Perspective3::new(ASPECT_RATIO, FOV, znear, zfar);
         Scene {
             view,
             lights,
-            projection,
+            scene_projection: projection,
         }
     }
 }
@@ -179,9 +202,8 @@ impl Default for Scene {
             0.7 * Vector3::new(0.0f32, -1.0f32, 1.0f32),
             // Vector3::new(0.0f32, -1.0f32, -1.0f32),
         ];
-        let znear = 1.0f32;
-        let zfar = 100.0f32;
-        Self::new(&eye, &target, &up, &lights, znear, zfar)
+        let projection = SceneProjection::default();
+        Self::new(&eye, &target, &up, &lights, projection)
     }
 }
 
@@ -216,8 +238,11 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
             let ray: Ray = Ray::new(ray_loc, ray_dir);
 
             // FIXME Make sure max_toi is reasonable
-            let toi_result =
-                mesh.cast_local_ray_and_get_normal(&ray, scene.projection.zfar() + 100.0, true);
+            let toi_result = mesh.cast_local_ray_and_get_normal(
+                &ray,
+                scene.scene_projection.perspective.zfar() + 100.0,
+                true,
+            );
             // TODO Consider whether we should take `abs` of intensity
             // FIXME Make sure background is returned if no collision
             if let Some(ri) = toi_result {
