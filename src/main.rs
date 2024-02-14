@@ -2,11 +2,8 @@
 
 use nalgebra::{Isometry3, Translation3, UnitQuaternion};
 use pdb_tui::rasterizer::BasicAsciiRasterizer;
-use pdb_tui::read::get_meshes_from_obj;
 use pdb_tui::render::{draw_trimesh_to_canvas, Canvas, Scene};
-use pdb_tui::surface::ToTriMesh;
 
-use std::path::Path;
 use std::time::Instant;
 
 fn main() {
@@ -24,24 +21,25 @@ fn main() {
 
     // TODO Look into Termion for a way to render PDB
 
+    // let meshes = get_meshes_from_obj(test_obj);
+    // let mesh = &meshes[0];
+    // let mut mesh = mesh.to_tri_mesh();
+
     let test_obj = "./data/surface.obj";
-    let meshes = get_meshes_from_obj(test_obj);
-    let mesh = &meshes[0];
-    let mut mesh = mesh.to_tri_mesh();
+    let mut scene = Scene::default();
+    scene.load_meshes_from_path(test_obj);
 
     // TODO Work out why the y axis differs from expected by up
     let translation = Translation3::new(15.0f32, 10.0f32, -20.0f32);
     let rotation = UnitQuaternion::identity();
     let transform = Isometry3::from_parts(translation, rotation);
-    mesh.transform_vertices(&transform);
-
-    let scene = Scene::default();
+    scene.transform_meshes(&transform);
 
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
     let now = Instant::now();
     println!("Starting to draw.");
-    draw_trimesh_to_canvas(&mesh, &scene, &mut canvas);
+    draw_trimesh_to_canvas(&scene, &mut canvas);
     let new_now = Instant::now();
     println!("Drawn after {:?}", new_now.duration_since(now));
 

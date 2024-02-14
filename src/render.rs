@@ -2,19 +2,18 @@
 use std::path::Path;
 
 use crate::rasterizer::Rasterizer;
-use image::GrayImage;
-use image::ImageResult;
+use crate::read::get_meshes_from_obj;
+use crate::surface::ToTriMesh;
+use image::{GrayImage, ImageResult};
 // use std::ops::Range;
 // Create a the surface from a PDB file
 // use crate::surface::SimpleMesh;
-use nalgebra::Perspective3;
-use nalgebra::Point3;
+use nalgebra::{Isometry3, Perspective3, Point3};
 // use nalgebra::Unit;
 // use nalgebra::UnitVector3;
 use nalgebra::{Matrix4, Vector3};
 // use pdbtbx::PDB;
-use parry3d::query::Ray;
-use parry3d::query::RayCast;
+use parry3d::query::{Ray, RayCast};
 use parry3d::shape::TriMesh;
 
 // Constants for playing around with rendering
@@ -106,6 +105,8 @@ impl<R: Rasterizer> Canvas<R> {
             Err(CanvasError::PixelOutOfRange { x, y })
         }
     }
+    /// Set a pixel unconditionally
+    /// Will do nothing if pixel out of range
     pub fn set_pixel(&mut self, x: usize, y: usize, val: f32) {
         match self.pixel_to_index(x, y) {
             Ok(idx) => {
@@ -114,13 +115,34 @@ impl<R: Rasterizer> Canvas<R> {
             Err(_e) => {}
         }
     }
-
+    /// Set a pixel conditional on time-of-impact being lower than current buffer value
+    /// Also updates time-of-impact buffer
+    /// Will do nothing if pixel out of range
+    pub fn set_pixel_toi(&mut self, x: usize, y: usize, val: f32, toi: f32) {
+        match self.pixel_to_index(x, y) {
+            Ok(idx) => {
+                if toi < self.toi_buffer[idx] {
+                    self.pixel_buffer[idx] = val;
+                    self.toi_buffer[idx] = toi;
+                }
+            }
+            Err(_e) => {}
+        }
+    }
     pub fn set_toi(&mut self, x: usize, y: usize, toi: f32) {
         match self.pixel_to_index(x, y) {
             Ok(idx) => {
                 self.toi_buffer[idx] = toi;
             }
             Err(_e) => {}
+        }
+    }
+    pub fn flush_buffers(&mut self) {
+        for x in 0..self.width {
+            for y in 0..self.height {
+                self.set_pixel(x, y, self.bg_pixel);
+                self.set_toi(x, y, f32::MAX);
+            }
         }
     }
 
@@ -147,6 +169,7 @@ impl<R: Rasterizer + Default> Default for Canvas<R> {
 }
 
 /// Wrapper struct holding the projection information defining the frustrum shape
+/// Needed to be able to implement default for quick testing
 pub struct SceneProjection {
     pub perspective: Perspective3<f32>,
 }
@@ -174,6 +197,7 @@ pub struct Scene {
     pub view: Matrix4<f32>,
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
+    meshes: Vec<TriMesh>,
 }
 impl Scene {
     fn new(
@@ -181,7 +205,8 @@ impl Scene {
         target: &Point3<f32>,
         up: &Vector3<f32>,
         lights: &[Vector3<f32>],
-        projection: SceneProjection,
+        scene_projection: SceneProjection,
+        meshes: Vec<TriMesh>,
     ) -> Self {
         let view = Matrix4::face_towards(eye, target, up);
         let lights = lights.to_owned();
@@ -189,7 +214,19 @@ impl Scene {
         Scene {
             view,
             lights,
-            scene_projection: projection,
+            scene_projection,
+            meshes,
+        }
+    }
+    pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
+        let tobj_meshes = get_meshes_from_obj(path);
+        self.meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+    }
+
+    /// Transform meshes according to tranformation
+    pub fn transform_meshes(&mut self, transform: &Isometry3<f32>) {
+        for mesh in self.meshes.iter_mut() {
+            mesh.transform_vertices(transform);
         }
     }
 }
@@ -202,8 +239,13 @@ impl Default for Scene {
             0.7 * Vector3::new(0.0f32, -1.0f32, 1.0f32),
             // Vector3::new(0.0f32, -1.0f32, -1.0f32),
         ];
-        let projection = SceneProjection::default();
-        Self::new(&eye, &target, &up, &lights, projection)
+        let scene_projection = SceneProjection::default();
+
+        // let test_obj = "./data/surface.obj";
+        // let meshes = get_meshes_from_obj(test_obj);
+        // let meshes = meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        let meshes = vec![];
+        Self::new(&eye, &target, &up, &lights, scene_projection, meshes)
     }
 }
 
@@ -223,12 +265,9 @@ fn pixel_to_clip(pixel: usize, pixels: usize) -> f32 {
     (pixel as f32) * pixel_width + pixel_width / 2.0 - 1.0
 }
 
-pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
-    mesh: &TriMesh,
-    scene: &Scene,
-    canvas: &mut Canvas<R>,
-) {
-    // TODO Define the model transformation somewhere
+pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(scene: &Scene, canvas: &mut Canvas<R>) {
+    canvas.flush_buffers();
+
     for x in 0..canvas.width {
         for y in 0..canvas.height {
             let x_clip = pixel_to_clip(x, canvas.width);
@@ -237,19 +276,20 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
             let (ray_loc, ray_dir) = create_ray(x_clip, y_clip, scene);
             let ray: Ray = Ray::new(ray_loc, ray_dir);
 
-            // FIXME Make sure max_toi is reasonable
-            let toi_result = mesh.cast_local_ray_and_get_normal(
-                &ray,
-                scene.scene_projection.perspective.zfar() + 100.0,
-                true,
-            );
-            // TODO Consider whether we should take `abs` of intensity
-            // FIXME Make sure background is returned if no collision
-            if let Some(ri) = toi_result {
-                let normal = ri.normal;
-                let intensity: f32 = scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));
-                canvas.set_pixel(x, y, intensity);
-                canvas.set_toi(x, y, ri.toi);
+            for mesh in scene.meshes.iter() {
+                // FIXME Make sure max_toi is reasonable
+                let toi_result = mesh.cast_local_ray_and_get_normal(
+                    &ray,
+                    scene.scene_projection.perspective.zfar() + 100.0,
+                    true,
+                );
+                // TODO Consider whether we should take `abs` of intensity
+                // FIXME Make sure background is returned if no collision
+                if let Some(ri) = toi_result {
+                    let normal = ri.normal;
+                    let intensity: f32 = scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));
+                    canvas.set_pixel_toi(x, y, intensity, ri.toi);
+                }
             }
         }
     }
@@ -259,8 +299,6 @@ pub fn draw_trimesh_to_canvas<R: Rasterizer + Default>(
 #[cfg(test)]
 mod tests {
     use crate::rasterizer::BasicAsciiRasterizer;
-    use crate::read::get_meshes_from_obj;
-    use crate::surface::ToTriMesh;
 
     use super::*;
     use std::path::Path;
@@ -290,17 +328,12 @@ mod tests {
         let test_obj = "./data/surface.obj";
         assert!(Path::new(test_obj).exists());
 
-        // let (models, _materials) = tobj::load_obj(test_obj, &tobj::LoadOptions::default())
-        //     .expect("Failed to OBJ load file");
-        let meshes = get_meshes_from_obj(test_obj);
-        let mesh = &meshes[0];
-        let mesh = mesh.to_tri_mesh();
-
-        let scene = Scene::default();
+        let mut scene = Scene::default();
+        scene.load_meshes_from_path(test_obj);
 
         // TODO Create canvas
         let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
-        draw_trimesh_to_canvas(&mesh, &scene, &mut canvas);
+        draw_trimesh_to_canvas(&scene, &mut canvas);
     }
 }
