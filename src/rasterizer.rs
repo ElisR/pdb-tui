@@ -7,7 +7,7 @@ pub struct BasicAsciiRasterizer {
     background: char,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RasterizerError {
     GradientNotMatchingThresholds,
     ThresholdsNotIncreasing,
@@ -21,13 +21,17 @@ impl BasicAsciiRasterizer {
     ) -> Result<BasicAsciiRasterizer, RasterizerError> {
         if gradient.len() + 1 == thresholds.len() {
             // Collect the thresholds into ranges from contiguous pairs
-            // TODO Add a check that w[1] > w[0] always
             let ranges: Vec<(f32, f32)> = thresholds.windows(2).map(|w| (w[0], w[1])).collect();
-            Ok(BasicAsciiRasterizer {
-                gradient,
-                ranges,
-                background,
-            })
+            let increasing = ranges.iter().all(|(l, u)| *l < *u);
+            if increasing {
+                Ok(BasicAsciiRasterizer {
+                    gradient,
+                    ranges,
+                    background,
+                })
+            } else {
+                Err(RasterizerError::ThresholdsNotIncreasing)
+            }
         } else {
             Err(RasterizerError::GradientNotMatchingThresholds)
         }
@@ -47,8 +51,7 @@ impl BasicAsciiRasterizer {
 
 impl Default for BasicAsciiRasterizer {
     fn default() -> Self {
-        let mut gradient = vec!['.', ':', '-', '=', '+', '*', '#', '%', '@'];
-        gradient.reverse();
+        let gradient = vec!['@', '%', '#', '*', '+', '=', '-', ':', '.'];
         let background = '@';
         BasicAsciiRasterizer::new(
             gradient,
@@ -93,9 +96,25 @@ mod tests {
     #[test]
     fn test_rasterizer() {
         let rasterizer = BasicAsciiRasterizer::default();
-        assert_eq!(rasterizer.pixel_to_char(0.15), '.');
-        assert_eq!(rasterizer.pixel_to_char(0.65), '*');
-        assert_eq!(rasterizer.pixel_to_char(0.85), '%');
-        assert_eq!(rasterizer.pixel_to_char(1.15), ' ');
+        assert_eq!(rasterizer.pixel_to_char(0.15), '@');
+        assert_eq!(rasterizer.pixel_to_char(0.65), '=');
+        assert_eq!(rasterizer.pixel_to_char(0.85), ':');
+        assert_eq!(rasterizer.pixel_to_char(1.15), rasterizer.get_bg_char());
+    }
+
+    #[test]
+    fn test_nonincreasing_error() {
+        let thresholds = vec![0.0, 0.4, 0.9, 0.6];
+        let gradient = vec!['.', '.', '.'];
+        let rasterizer = BasicAsciiRasterizer::new(gradient, thresholds, ' ');
+        assert!(rasterizer.is_err_and(|x| x == RasterizerError::ThresholdsNotIncreasing));
+    }
+
+    #[test]
+    fn test_notmatching_error() {
+        let thresholds = vec![0.0, 0.4, 0.6];
+        let gradient = vec!['.', '.', '.'];
+        let rasterizer = BasicAsciiRasterizer::new(gradient, thresholds, ' ');
+        assert!(rasterizer.is_err_and(|x| x == RasterizerError::GradientNotMatchingThresholds));
     }
 }
