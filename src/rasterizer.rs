@@ -80,7 +80,8 @@ impl Rasterizer for BasicAsciiRasterizer {
         let mut out: Vec<char> = Vec::with_capacity(pixels.len());
         // FIXME Find a better way to avoid stretching image
         // Crude hack to account for height of font character being bigger than width
-        for row in pixels.iter().step_by(2) {
+        // Reverse because small coord means small index, but the top of the screen should have large y
+        for row in pixels.iter().rev().step_by(2) {
             for pixel in row.iter() {
                 let ascii = self.pixel_to_char(*pixel);
                 out.push(ascii);

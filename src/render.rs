@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::rasterizer::Rasterizer;
 use crate::read::get_meshes_from_obj;
 use crate::surface::ToTriMesh;
+use image::imageops::flip_vertical_in_place;
 use image::{GrayImage, ImageResult};
 // use std::ops::Range;
 // Create a the surface from a PDB file
@@ -20,7 +21,7 @@ use parry3d::shape::TriMesh;
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
 const SCREEN_PIXELS_X: usize = 320;
 const SCREEN_PIXELS_Y: usize = 180;
-const FOV: f32 = std::f32::consts::PI / 4.0; // Radians
+const FOV: f32 = std::f32::consts::FRAC_PI_4; // Radians
 
 pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) {
     // Compute two points in clip-space.
@@ -156,8 +157,10 @@ impl<R: Rasterizer> Canvas<R> {
             .iter()
             .map(|i| (i * 255.0).round() as u8)
             .collect();
-        let image_buffer =
+        let mut image_buffer =
             GrayImage::from_raw(self.width as u32, self.height as u32, pixels_transformed).unwrap();
+        // Flip because small coord means small index, but top of image should have large y
+        flip_vertical_in_place(&mut image_buffer);
         image_buffer.save(path)
     }
 }
@@ -210,7 +213,6 @@ impl Scene {
     ) -> Self {
         let view = Matrix4::face_towards(eye, target, up);
         let lights = lights.to_owned();
-        // TODO Swap out global aspect ratio and fov for something else
         Scene {
             view,
             lights,
@@ -236,7 +238,7 @@ impl Default for Scene {
         let target = Point3::new(0.0f32, 0.0f32, 0.0f32);
         let up = Vector3::new(0.0f32, 1.0f32, 0.0f32);
         let lights = vec![
-            0.7 * Vector3::new(0.0f32, -1.0f32, 1.0f32),
+            0.7 * Vector3::new(0.0f32, 1.0f32, 1.0f32),
             // Vector3::new(0.0f32, -1.0f32, -1.0f32),
         ];
         let scene_projection = SceneProjection::default();
@@ -330,10 +332,7 @@ mod tests {
 
         let mut scene = Scene::default();
         scene.load_meshes_from_path(test_obj);
-
-        // TODO Create canvas
         let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
-
         draw_trimesh_to_canvas(&scene, &mut canvas);
     }
 }
