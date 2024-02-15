@@ -14,29 +14,34 @@ pub enum RasterizerError {
 }
 
 impl BasicAsciiRasterizer {
-    fn new(
+    /// Validating the parameters and raising any errors that should propagate to the constructor
+    fn validate_parameters(
+        gradient: &Vec<char>,
+        thresholds: &Vec<f32>,
+    ) -> Result<Vec<(f32, f32)>, RasterizerError> {
+        if gradient.len() + 1 != thresholds.len() {
+            return Err(RasterizerError::GradientNotMatchingThresholds);
+        }
+        let ranges: Vec<(f32, f32)> = thresholds.windows(2).map(|w| (w[0], w[1])).collect();
+        if !ranges.iter().all(|(l, u)| *l < *u) {
+            return Err(RasterizerError::ThresholdsNotIncreasing);
+        }
+        Ok(ranges)
+    }
+    pub fn new(
         gradient: Vec<char>,
         thresholds: Vec<f32>,
         background: char,
     ) -> Result<BasicAsciiRasterizer, RasterizerError> {
-        if gradient.len() + 1 == thresholds.len() {
-            // Collect the thresholds into ranges from contiguous pairs
-            let ranges: Vec<(f32, f32)> = thresholds.windows(2).map(|w| (w[0], w[1])).collect();
-            let increasing = ranges.iter().all(|(l, u)| *l < *u);
-            if increasing {
-                Ok(BasicAsciiRasterizer {
-                    gradient,
-                    ranges,
-                    background,
-                })
-            } else {
-                Err(RasterizerError::ThresholdsNotIncreasing)
-            }
-        } else {
-            Err(RasterizerError::GradientNotMatchingThresholds)
+        match BasicAsciiRasterizer::validate_parameters(&gradient, &thresholds) {
+            Ok(ranges) => Ok(BasicAsciiRasterizer {
+                gradient,
+                ranges,
+                background,
+            }),
+            Err(e) => Err(e),
         }
     }
-
     fn pixel_to_char(&self, val: f32) -> char {
         let mut out = self.background;
         for (i, (min, max)) in self.ranges.iter().enumerate() {
