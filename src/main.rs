@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-use nalgebra::{Isometry3, Translation3, UnitQuaternion};
+use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 use pdb_tui::rasterizer::BasicAsciiRasterizer;
-use pdb_tui::render::{draw_trimesh_to_canvas, Canvas, Scene};
+use pdb_tui::render::{Canvas, Scene};
 
 use std::time::Instant;
 
@@ -29,9 +29,8 @@ fn main() {
     let mut scene = Scene::default();
     scene.load_meshes_from_path(test_obj);
 
-    // TODO Work out why the y axis differs from expected by up
-    let translation = Translation3::new(15.0f32, 10.0f32, -20.0f32);
-    let rotation = UnitQuaternion::identity();
+    let translation = Translation3::new(15.0f32, 15.0f32, -20.0f32);
+    let rotation = UnitQuaternion::from_scaled_axis(Vector3::y() * std::f32::consts::FRAC_PI_8);
     let transform = Isometry3::from_parts(translation, rotation);
     scene.transform_meshes(&transform);
 
@@ -39,7 +38,7 @@ fn main() {
 
     let now = Instant::now();
     println!("Starting to draw.");
-    draw_trimesh_to_canvas(&scene, &mut canvas);
+    canvas.draw_scene_to_canvas(&scene);
     let new_now = Instant::now();
     println!("Drawn after {:?}", new_now.duration_since(now));
 
@@ -48,7 +47,17 @@ fn main() {
     let stdout: String = frame_buffer.iter().collect();
     print!("{}", stdout);
 
-    canvas.save_image("canvas.png").unwrap();
+    let x_shift = Isometry3::from_parts(
+        Translation3::new(5.0f32, 0f32, 0f32),
+        UnitQuaternion::identity(),
+    );
+    for i in 0..10 {
+        scene.transform_meshes(&x_shift);
+        canvas.draw_scene_to_canvas(&scene);
+
+        let path = format!("canvas_{}.png", i);
+        canvas.save_image(path).unwrap();
+    }
 }
 
 // TODO Add some tests for basic things
