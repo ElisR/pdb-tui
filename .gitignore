@@ -14,6 +14,13 @@ Cargo.lock
 *.pdb
 
 
+# MacOS specific filler
+*.DS_store
+
+
 # Added by cargo
 
 /target
+
+# Ignore image output
+*.png
