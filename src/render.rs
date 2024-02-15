@@ -1,21 +1,12 @@
 #![allow(dead_code)]
+use crate::{rasterizer::Rasterizer, read::get_meshes_from_obj, surface::ToTriMesh};
+use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
+use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector3};
+use parry3d::{
+    query::{Ray, RayCast},
+    shape::TriMesh,
+};
 use std::path::Path;
-
-use crate::rasterizer::Rasterizer;
-use crate::read::get_meshes_from_obj;
-use crate::surface::ToTriMesh;
-use image::imageops::flip_vertical_in_place;
-use image::{GrayImage, ImageResult};
-// use std::ops::Range;
-// Create a the surface from a PDB file
-// use crate::surface::SimpleMesh;
-use nalgebra::{Isometry3, Perspective3, Point3};
-// use nalgebra::Unit;
-// use nalgebra::UnitVector3;
-use nalgebra::{Matrix4, Vector3};
-// use pdbtbx::PDB;
-use parry3d::query::{Ray, RayCast};
-use parry3d::shape::TriMesh;
 
 // Constants for playing around with rendering
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
@@ -199,22 +190,18 @@ impl<R: Rasterizer> Canvas<R> {
     /// Also updates time-of-impact buffer
     /// Will do nothing if pixel out of range
     pub fn set_pixel_toi(&mut self, x: usize, y: usize, val: f32, toi: f32) {
-        match self.pixel_to_index(x, y) {
-            Ok(idx) => {
-                if toi < self.toi_buffer[idx] {
-                    self.pixel_buffer[idx] = val;
-                    self.toi_buffer[idx] = toi;
-                }
-            }
-            Err(_e) => {}
-        }
-    }
-    pub fn set_toi(&mut self, x: usize, y: usize, toi: f32) {
-        match self.pixel_to_index(x, y) {
-            Ok(idx) => {
+        if let Ok(idx) = self.pixel_to_index(x, y) {
+            if toi < self.toi_buffer[idx] {
+                self.pixel_buffer[idx] = val;
                 self.toi_buffer[idx] = toi;
             }
-            Err(_e) => {}
+        }
+    }
+    /// Update time-of-impact buffer
+    /// Will do nothing if pixel out of range
+    pub fn set_toi(&mut self, x: usize, y: usize, toi: f32) {
+        if let Ok(idx) = self.pixel_to_index(x, y) {
+            self.toi_buffer[idx] = toi;
         }
     }
     /// Set all the buffers to just display the background
@@ -229,7 +216,6 @@ impl<R: Rasterizer> Canvas<R> {
     /// Update the canvas with the current state of the scene
     pub fn draw_scene_to_canvas(&mut self, scene: &Scene) {
         self.flush_buffers();
-
         for x in 0..self.width {
             for y in 0..self.height {
                 let x_clip = pixel_to_clip(x, self.width);

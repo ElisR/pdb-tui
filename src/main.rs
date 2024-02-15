@@ -1,8 +1,9 @@
 #![allow(dead_code)]
-
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
-use pdb_tui::rasterizer::BasicAsciiRasterizer;
-use pdb_tui::render::{Canvas, Scene};
+use pdb_tui::{
+    rasterizer::BasicAsciiRasterizer,
+    render::{Canvas, Scene},
+};
 
 use std::time::Instant;
 
