@@ -1,47 +1,52 @@
 #![allow(dead_code)]
-use nalgebra::{Isometry3, Translation3, UnitDualQuaternion, UnitQuaternion, Vector3};
+use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 use pdb_tui::{
     rasterizer::BasicAsciiRasterizer,
     render::{Canvas, Scene},
 };
-use std::time::Instant;
 
 use crossterm::{
     event::{self, KeyCode, KeyEventKind},
+    execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{CrosstermBackend, Stylize, Terminal},
+    prelude::{CrosstermBackend, Terminal},
     text::Text,
     widgets::Paragraph,
 };
 use std::io::{stdout, Result};
 
-fn main() -> Result<()> {
-    stdout().execute(EnterAlternateScreen)?;
+/// Perform shutdown of terminal
+fn shutdown() -> Result<()> {
+    stdout().execute(LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    Ok(())
+}
+
+fn startup() -> Result<()> {
     enable_raw_mode()?;
+    execute!(std::io::stderr(), EnterAlternateScreen)?;
+    Ok(())
+}
+
+fn run() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
-
-    // TODO main loop
 
     // Load and draw
     let test_obj = "./data/surface.obj";
     let mut scene = Scene::default();
     scene.load_meshes_from_path(test_obj);
-    // let translation = Translation3::new(5.0f32, 0.0f32, 0.0f32);
-    // let rotation = UnitQuaternion::from_scaled_axis(Vector3::y() * std::f32::consts::FRAC_PI_8);
-    // let rotation = UnitQuaternion::identity();
-    // let transform = Isometry3::from_parts(translation, rotation);
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
     canvas.draw_scene_to_canvas(&scene);
 
-    // Print output to stdout
-    // print!("{}", out_string);
-
+    // TODO Make all of this async
     loop {
+        // TODO Update frame size dynamically
+        // TODO Only draw to canvas if something about the scene has changed
         canvas.draw_scene_to_canvas(&scene);
         let out_string: String = canvas.frame_buffer.iter().collect();
         terminal.draw(|frame| {
@@ -49,10 +54,12 @@ fn main() -> Result<()> {
             frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
         })?;
 
+        // TODO Move this out into separate function
         // Listen for keypress
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    // TODO Match on capital letters to rotate
                     match key.code {
                         KeyCode::Char('q') => {
                             break;
@@ -81,25 +88,51 @@ fn main() -> Result<()> {
                             let transform = Isometry3::translation(0f32, 0f32, -5f32);
                             scene.transform_meshes(&transform);
                         }
+                        KeyCode::Char('L') => {
+                            let rotation = UnitQuaternion::from_scaled_axis(
+                                Vector3::y() * std::f32::consts::FRAC_PI_8,
+                            );
+                            let transform =
+                                Isometry3::from_parts(Translation3::identity(), rotation);
+                            scene.transform_meshes(&transform);
+                        }
+                        KeyCode::Char('H') => {
+                            let rotation = UnitQuaternion::from_scaled_axis(
+                                -Vector3::y() * std::f32::consts::FRAC_PI_8,
+                            );
+                            let transform =
+                                Isometry3::from_parts(Translation3::identity(), rotation);
+                            scene.transform_meshes(&transform);
+                        }
+                        KeyCode::Char('K') => {
+                            let rotation = UnitQuaternion::from_scaled_axis(
+                                Vector3::x() * std::f32::consts::FRAC_PI_8,
+                            );
+                            let transform =
+                                Isometry3::from_parts(Translation3::identity(), rotation);
+                            scene.transform_meshes(&transform);
+                        }
+                        KeyCode::Char('J') => {
+                            let rotation = UnitQuaternion::from_scaled_axis(
+                                -Vector3::x() * std::f32::consts::FRAC_PI_8,
+                            );
+                            let transform =
+                                Isometry3::from_parts(Translation3::identity(), rotation);
+                            scene.transform_meshes(&transform);
+                        }
                         _ => {}
                     }
                 }
             }
         }
     }
+    Ok(())
+}
 
-    // let x_shift = Isometry3::from_parts(
-    //     Translation3::new(5.0f32, 0f32, 0f32),
-    //     UnitQuaternion::identity(),
-    // );
-    // for i in 0..10 {
-    //     scene.transform_meshes(&x_shift);
-    //     canvas.draw_scene_to_canvas(&scene);
-    //     let path = format!("canvas_{}.png", i);
-    //     canvas.save_image(path).unwrap();
-
-    // Cleanup
-    stdout().execute(LeaveAlternateScreen)?;
-    disable_raw_mode()?;
+fn main() -> Result<()> {
+    startup()?;
+    let result = run();
+    shutdown()?;
+    result?;
     Ok(())
 }
