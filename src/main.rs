@@ -18,6 +18,14 @@ use ratatui::{
 };
 use std::io::{stdout, Result};
 
+/// Enum holding the possible things that will happen after an action
+enum NextAction {
+    Quit,
+    Translate { x: f32, y: f32, z: f32 },
+    Rotate { axis: Vector3<f32>, angle: f32 },
+    Nothing,
+}
+
 /// Perform shutdown of terminal
 fn shutdown() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
@@ -54,74 +62,77 @@ fn run() -> Result<()> {
             frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
         })?;
 
-        // TODO Move this out into separate function
         // Listen for keypress
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    // TODO Match on capital letters to rotate
-                    match key.code {
-                        KeyCode::Char('q') => {
+                    let next_action = match key.code {
+                        KeyCode::Char('q') => NextAction::Quit,
+                        KeyCode::Char('l') => NextAction::Translate {
+                            x: 5.0,
+                            y: 0.0,
+                            z: 0.0,
+                        },
+                        KeyCode::Char('h') => NextAction::Translate {
+                            x: 5.0,
+                            y: 0.0,
+                            z: 0.0,
+                        },
+                        KeyCode::Char('k') => NextAction::Translate {
+                            x: 0.0,
+                            y: 5.0,
+                            z: 0.0,
+                        },
+                        KeyCode::Char('j') => NextAction::Translate {
+                            x: 0.0,
+                            y: -5.0,
+                            z: 0.0,
+                        },
+                        KeyCode::Char('u') => NextAction::Translate {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 5.0,
+                        },
+                        KeyCode::Char('d') => NextAction::Translate {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -5.0,
+                        },
+                        KeyCode::Char('L') => NextAction::Rotate {
+                            axis: Vector3::y(),
+                            angle: std::f32::consts::FRAC_PI_8,
+                        },
+                        KeyCode::Char('H') => NextAction::Rotate {
+                            axis: Vector3::y(),
+                            angle: -std::f32::consts::FRAC_PI_8,
+                        },
+                        KeyCode::Char('K') => NextAction::Rotate {
+                            axis: Vector3::x(),
+                            angle: -std::f32::consts::FRAC_PI_8,
+                        },
+                        KeyCode::Char('J') => NextAction::Rotate {
+                            axis: Vector3::x(),
+                            angle: -std::f32::consts::FRAC_PI_8,
+                        },
+                        _ => NextAction::Nothing,
+                    };
+
+                    match next_action {
+                        NextAction::Quit => {
                             break;
                         }
-                        KeyCode::Char('l') => {
-                            let transform = Isometry3::translation(5f32, 0f32, 0f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('h') => {
-                            let transform = Isometry3::translation(-5f32, 0f32, 0f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('k') => {
-                            let transform = Isometry3::translation(0f32, 5f32, 0f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('j') => {
-                            let transform = Isometry3::translation(0f32, -5f32, 0f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('u') => {
-                            let transform = Isometry3::translation(0f32, 0f32, 5f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('d') => {
-                            let transform = Isometry3::translation(0f32, 0f32, -5f32);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('L') => {
-                            let rotation = UnitQuaternion::from_scaled_axis(
-                                Vector3::y() * std::f32::consts::FRAC_PI_8,
-                            );
+                        NextAction::Rotate { axis, angle } => {
+                            let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
                             let transform =
                                 Isometry3::from_parts(Translation3::identity(), rotation);
                             scene.transform_meshes(&transform);
                         }
-                        KeyCode::Char('H') => {
-                            let rotation = UnitQuaternion::from_scaled_axis(
-                                -Vector3::y() * std::f32::consts::FRAC_PI_8,
-                            );
-                            let transform =
-                                Isometry3::from_parts(Translation3::identity(), rotation);
+                        NextAction::Translate { x, y, z } => {
+                            let transform = Isometry3::translation(x, y, z);
                             scene.transform_meshes(&transform);
                         }
-                        KeyCode::Char('K') => {
-                            let rotation = UnitQuaternion::from_scaled_axis(
-                                Vector3::x() * std::f32::consts::FRAC_PI_8,
-                            );
-                            let transform =
-                                Isometry3::from_parts(Translation3::identity(), rotation);
-                            scene.transform_meshes(&transform);
-                        }
-                        KeyCode::Char('J') => {
-                            let rotation = UnitQuaternion::from_scaled_axis(
-                                -Vector3::x() * std::f32::consts::FRAC_PI_8,
-                            );
-                            let transform =
-                                Isometry3::from_parts(Translation3::identity(), rotation);
-                            scene.transform_meshes(&transform);
-                        }
-                        _ => {}
-                    }
+                        NextAction::Nothing => {}
+                    };
                 }
             }
         }
