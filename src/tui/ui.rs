@@ -5,6 +5,7 @@ use crate::{
 };
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 
+use chrono::{DateTime, Local};
 use crossterm::{
     event::{self, KeyCode, KeyEvent, KeyEventKind},
     execute,
@@ -23,6 +24,7 @@ enum NextAction {
     Quit,
     Translate { x: f32, y: f32, z: f32 },
     Rotate { axis: Vector3<f32>, angle: f32 },
+    Save,
     Nothing,
 }
 
@@ -77,6 +79,7 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
                 axis: Vector3::x(),
                 angle: -std::f32::consts::FRAC_PI_8,
             },
+            KeyCode::Char('s') => NextAction::Save,
             _ => NextAction::Nothing,
         }
     } else {
@@ -140,6 +143,12 @@ pub fn run() -> Result<()> {
                         let transform = Isometry3::translation(x, y, z);
                         scene.transform_meshes(&transform);
                         canvas.draw_scene_to_canvas(&scene);
+                    }
+                    NextAction::Save => {
+                        let now: DateTime<Local> = Local::now();
+                        let path = format!("canvas_screenshot_{}.png", now.format("%Y%m%d_%H%M%S"));
+                        // TODO Bubble this up to an error popup if something goes wrong
+                        let _ = canvas.save_image(path);
                     }
                     NextAction::Quit => {
                         break;
