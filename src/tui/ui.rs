@@ -31,22 +31,22 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     if key.kind == KeyEventKind::Press {
         match key.code {
             KeyCode::Char('q') => NextAction::Quit,
-            KeyCode::Char('l') => NextAction::Translate {
+            KeyCode::Char('l') | KeyCode::Right => NextAction::Translate {
                 x: 5.0,
                 y: 0.0,
                 z: 0.0,
             },
-            KeyCode::Char('h') => NextAction::Translate {
+            KeyCode::Char('h') | KeyCode::Left => NextAction::Translate {
                 x: -5.0,
                 y: 0.0,
                 z: 0.0,
             },
-            KeyCode::Char('k') => NextAction::Translate {
+            KeyCode::Char('k') | KeyCode::Up => NextAction::Translate {
                 x: 0.0,
                 y: 5.0,
                 z: 0.0,
             },
-            KeyCode::Char('j') => NextAction::Translate {
+            KeyCode::Char('j') | KeyCode::Down => NextAction::Translate {
                 x: 0.0,
                 y: -5.0,
                 z: 0.0,
