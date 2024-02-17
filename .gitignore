@@ -11,16 +11,12 @@ Cargo.lock
 **/*.rs.bk
 
 # MSVC Windows builds of rustc generate these, which store debugging information
-*.pdb
-
+# *.pdb
 
 # MacOS specific filler
 *.DS_store
 
-
 # Added by cargo
-
 /target
 
-# Ignore image output
 *.png
