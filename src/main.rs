@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 use pdb_tui::{
-    rasterizer::BasicAsciiRasterizer,
+    rasterizer::{BasicAsciiRasterizer, Rasterizer},
     render::{Canvas, Scene},
 };
 
 use crossterm::{
-    event::{self, KeyCode, KeyEventKind},
+    event::{self, KeyCode, KeyEvent, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{CrosstermBackend, Terminal},
+    prelude::{CrosstermBackend, Frame, Terminal},
     text::Text,
     widgets::Paragraph,
 };
@@ -26,6 +26,64 @@ enum NextAction {
     Nothing,
 }
 
+/// Return the next action depending on the latest `KeyEvent`
+fn next_action_from_key(key: KeyEvent) -> NextAction {
+    if key.kind == KeyEventKind::Press {
+        match key.code {
+            KeyCode::Char('q') => NextAction::Quit,
+            KeyCode::Char('l') => NextAction::Translate {
+                x: 5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            KeyCode::Char('h') => NextAction::Translate {
+                x: -5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            KeyCode::Char('k') => NextAction::Translate {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            KeyCode::Char('j') => NextAction::Translate {
+                x: 0.0,
+                y: -5.0,
+                z: 0.0,
+            },
+            KeyCode::Char('u') => NextAction::Translate {
+                x: 0.0,
+                y: 0.0,
+                z: 5.0,
+            },
+            KeyCode::Char('d') => NextAction::Translate {
+                x: 0.0,
+                y: 0.0,
+                z: -5.0,
+            },
+            KeyCode::Char('L') => NextAction::Rotate {
+                axis: Vector3::y(),
+                angle: std::f32::consts::FRAC_PI_8,
+            },
+            KeyCode::Char('H') => NextAction::Rotate {
+                axis: Vector3::y(),
+                angle: -std::f32::consts::FRAC_PI_8,
+            },
+            KeyCode::Char('K') => NextAction::Rotate {
+                axis: Vector3::x(),
+                angle: -std::f32::consts::FRAC_PI_8,
+            },
+            KeyCode::Char('J') => NextAction::Rotate {
+                axis: Vector3::x(),
+                angle: -std::f32::consts::FRAC_PI_8,
+            },
+            _ => NextAction::Nothing,
+        }
+    } else {
+        NextAction::Nothing
+    }
+}
+
 /// Perform shutdown of terminal
 fn shutdown() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
@@ -33,10 +91,17 @@ fn shutdown() -> Result<()> {
     Ok(())
 }
 
+/// Start the terminal
 fn startup() -> Result<()> {
     enable_raw_mode()?;
     execute!(std::io::stderr(), EnterAlternateScreen)?;
     Ok(())
+}
+
+fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, frame: &mut Frame) {
+    let area = frame.size();
+    let out_string: String = canvas.frame_buffer.iter().collect();
+    frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
 }
 
 fn run() -> Result<()> {
@@ -54,86 +119,28 @@ fn run() -> Result<()> {
     // TODO Make all of this async
     loop {
         // TODO Update frame size dynamically
-        // TODO Only draw to canvas if something about the scene has changed
-        canvas.draw_scene_to_canvas(&scene);
-        let out_string: String = canvas.frame_buffer.iter().collect();
-        terminal.draw(|frame| {
-            let area = frame.size();
-            frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
-        })?;
+        terminal.draw(|frame| ui(&mut canvas, frame))?;
 
-        // Listen for keypress
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    let next_action = match key.code {
-                        KeyCode::Char('q') => NextAction::Quit,
-                        KeyCode::Char('l') => NextAction::Translate {
-                            x: 5.0,
-                            y: 0.0,
-                            z: 0.0,
-                        },
-                        KeyCode::Char('h') => NextAction::Translate {
-                            x: 5.0,
-                            y: 0.0,
-                            z: 0.0,
-                        },
-                        KeyCode::Char('k') => NextAction::Translate {
-                            x: 0.0,
-                            y: 5.0,
-                            z: 0.0,
-                        },
-                        KeyCode::Char('j') => NextAction::Translate {
-                            x: 0.0,
-                            y: -5.0,
-                            z: 0.0,
-                        },
-                        KeyCode::Char('u') => NextAction::Translate {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 5.0,
-                        },
-                        KeyCode::Char('d') => NextAction::Translate {
-                            x: 0.0,
-                            y: 0.0,
-                            z: -5.0,
-                        },
-                        KeyCode::Char('L') => NextAction::Rotate {
-                            axis: Vector3::y(),
-                            angle: std::f32::consts::FRAC_PI_8,
-                        },
-                        KeyCode::Char('H') => NextAction::Rotate {
-                            axis: Vector3::y(),
-                            angle: -std::f32::consts::FRAC_PI_8,
-                        },
-                        KeyCode::Char('K') => NextAction::Rotate {
-                            axis: Vector3::x(),
-                            angle: -std::f32::consts::FRAC_PI_8,
-                        },
-                        KeyCode::Char('J') => NextAction::Rotate {
-                            axis: Vector3::x(),
-                            angle: -std::f32::consts::FRAC_PI_8,
-                        },
-                        _ => NextAction::Nothing,
-                    };
-
-                    match next_action {
-                        NextAction::Quit => {
-                            break;
-                        }
-                        NextAction::Rotate { axis, angle } => {
-                            let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
-                            let transform =
-                                Isometry3::from_parts(Translation3::identity(), rotation);
-                            scene.transform_meshes(&transform);
-                        }
-                        NextAction::Translate { x, y, z } => {
-                            let transform = Isometry3::translation(x, y, z);
-                            scene.transform_meshes(&transform);
-                        }
-                        NextAction::Nothing => {}
-                    };
-                }
+                let next_action = next_action_from_key(key);
+                match next_action {
+                    NextAction::Rotate { axis, angle } => {
+                        let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
+                        let transform = Isometry3::from_parts(Translation3::identity(), rotation);
+                        scene.transform_meshes(&transform);
+                        canvas.draw_scene_to_canvas(&scene);
+                    }
+                    NextAction::Translate { x, y, z } => {
+                        let transform = Isometry3::translation(x, y, z);
+                        scene.transform_meshes(&transform);
+                        canvas.draw_scene_to_canvas(&scene);
+                    }
+                    NextAction::Quit => {
+                        break;
+                    }
+                    NextAction::Nothing => {}
+                };
             }
         }
     }
