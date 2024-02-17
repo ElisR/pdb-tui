@@ -77,11 +77,11 @@ pub trait Rasterizer {
 
 impl Rasterizer for BasicAsciiRasterizer {
     fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char> {
-        let mut out: Vec<char> = Vec::with_capacity(pixels.len());
-        // FIXME Find a better way to avoid stretching image
-        // Crude hack to account for height of font character being bigger than width
+        // Add one to account for newline character
+        let total_chars: usize = pixels.iter().map(|row| row.len() + 1).sum();
+        let mut out: Vec<char> = Vec::with_capacity(total_chars);
         // Reverse because small coord means small index, but the top of the screen should have large y
-        for row in pixels.iter().rev().step_by(2) {
+        for row in pixels.iter().rev() {
             for pixel in row.iter() {
                 let ascii = self.pixel_to_char(*pixel);
                 out.push(ascii);

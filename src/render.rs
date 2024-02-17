@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 use crate::{rasterizer::Rasterizer, read::get_meshes_from_obj, surface::ToTriMesh};
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector3};
@@ -8,16 +8,24 @@ use parry3d::{
 };
 use std::path::Path;
 
-// Constants for playing around with rendering
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
 const SCREEN_PIXELS_X: usize = 320;
 const SCREEN_PIXELS_Y: usize = 180;
-const FOV: f32 = std::f32::consts::FRAC_PI_4; // Radians
+/// Default for FOV in radians
+const FOVY: f32 = std::f32::consts::FRAC_PI_4;
+const ZNEAR_DEFAULT: f32 = 1.0;
+const ZFAR_DEFAULT: f32 = 100.0;
+
+/// The ratio of height to width of terminal characters.
+/// This depends on the font being used by the terminal emulator
+const CHAR_ASPECT_RATIO: f32 = 2.0;
 
 pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) {
     // Compute two points in clip-space.
     let near_ndc_point = Point3::new(x, y, -1.0);
     let far_ndc_point = Point3::new(x, y, 1.0);
+
+    // FIXME Actually use the `view` field of the scene
 
     // Unproject them to view-space.
     let near_view_point = scene
@@ -37,24 +45,43 @@ pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) 
     (line_location, line_direction)
 }
 
-/// Wrapper struct holding the projection information defining the frustrum shape
+/// Adjusts the aspect ratio for the projection according to non-square pixels
+fn adjust_aspect(aspect_ratio: f32, char_aspect_ratio: f32) -> f32 {
+    aspect_ratio / char_aspect_ratio
+}
+
+/// Wrapper struct holding the projection information defining the frustum shape
 /// Needed to be able to implement default for quick testing
 pub struct SceneProjection {
     pub perspective: Perspective3<f32>,
 }
 impl SceneProjection {
-    fn new(znear: f32, zfar: f32, aspect_ratio: f32, fovy: f32) -> Self {
-        let perspective = Perspective3::new(aspect_ratio, fovy, znear, zfar);
+    pub fn new(znear: f32, zfar: f32, aspect_ratio: f32, fovy: f32) -> Self {
+        // FIXME Think if divide or multiply
+        let adjusted_aspect_ratio = adjust_aspect(aspect_ratio, CHAR_ASPECT_RATIO);
+        let perspective = Perspective3::new(adjusted_aspect_ratio, fovy, znear, zfar);
         SceneProjection { perspective }
+    }
+    /// Create new projection that fits meshes into `znear` and `zfar`
+    /// Will resort to default `znear` and `zfar` if slice of meshes is empty
+    pub fn update_for_meshes(&mut self, meshes: &[TriMesh]) {
+        // FIXME Have this not be tied to orientation, maybe by using sphere
+        let znear = meshes
+            .iter()
+            .map(|m| m.local_aabb().mins.z)
+            .reduce(f32::min)
+            .unwrap_or(ZNEAR_DEFAULT);
+        let zfar = meshes
+            .iter()
+            .map(|m| m.local_aabb().maxs.z)
+            .reduce(f32::max)
+            .unwrap_or(ZFAR_DEFAULT);
+        self.perspective.set_znear_and_zfar(znear, zfar);
     }
 }
 impl Default for SceneProjection {
     fn default() -> Self {
-        let znear = 1.0f32;
-        let zfar = 100.0f32;
-        let aspect_ratio = ASPECT_RATIO;
-        let fovy = FOV;
-        Self::new(znear, zfar, aspect_ratio, fovy)
+        Self::new(ZNEAR_DEFAULT, ZFAR_DEFAULT, ASPECT_RATIO, FOVY)
     }
 }
 
@@ -86,16 +113,35 @@ impl Scene {
             meshes,
         }
     }
+    /// Change the scene projection according to new width and height of canvas
+    pub fn update_aspect(&mut self, width: usize, height: usize) {
+        let aspect_ratio = width as f32 / height as f32;
+        let adjusted_aspect_ratio = adjust_aspect(aspect_ratio, CHAR_ASPECT_RATIO);
+        self.scene_projection
+            .perspective
+            .set_aspect(adjusted_aspect_ratio);
+    }
     pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
         let tobj_meshes = get_meshes_from_obj(path);
         self.meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        self.scene_projection.update_for_meshes(&self.meshes);
     }
-
     /// Transform meshes according to tranformation
     pub fn transform_meshes(&mut self, transform: &Isometry3<f32>) {
         for mesh in self.meshes.iter_mut() {
             mesh.transform_vertices(transform);
         }
+    }
+    /// Change the view according to transformation
+    // TODO Think how to implement this
+    pub fn transform_view(&mut self, transform: &Isometry3<f32>) {
+        // NOTE The view transformation is a rotation and translation
+        todo!()
+    }
+    /// Resetting the view to point at the center-of-mass of the meshes
+    // TODO Write this function
+    pub fn reset_eye_to_com(&mut self) {
+        todo!();
     }
 }
 impl Default for Scene {
@@ -108,10 +154,6 @@ impl Default for Scene {
             // Vector3::new(0.0f32, -1.0f32, -1.0f32),
         ];
         let scene_projection = SceneProjection::default();
-
-        // let test_obj = "./data/surface.obj";
-        // let meshes = get_meshes_from_obj(test_obj);
-        // let meshes = meshes.iter().map(|m| m.to_tri_mesh()).collect();
         let meshes = vec![];
         Self::new(&eye, &target, &up, &lights, scene_projection, meshes)
     }
@@ -123,11 +165,11 @@ pub enum CanvasError {
 
 pub struct Canvas<R: Rasterizer> {
     pub frame_buffer: Vec<char>,
+    // TODO Consider changing pixel buffer to 2D array for more convenience
     pub pixel_buffer: Vec<f32>,
     pub toi_buffer: Vec<f32>,
-    // TODO Don't make these public, so that they can't be trivially updated and break buffer sizes
-    pub width: usize,
-    pub height: usize,
+    width: usize,
+    height: usize,
     pub rasterizer: R,
     /// Pixel intensity used for the background
     pub bg_pixel: f32,
@@ -141,9 +183,9 @@ impl<R: Rasterizer + Default> Canvas<R> {
         let rasterizer = R::default();
 
         let size = width * height;
-        let frame_buffer = vec![rasterizer.get_bg_char(); size];
         let pixel_buffer = vec![bg_pixel; size];
         let toi_buffer = vec![f32::MAX; size];
+        let frame_buffer = rasterizer.pixels_to_stdout(pixel_buffer.chunks(width).collect());
         Canvas {
             frame_buffer,
             pixel_buffer,
@@ -155,18 +197,36 @@ impl<R: Rasterizer + Default> Canvas<R> {
         }
     }
 }
-
 impl<R: Rasterizer> Canvas<R> {
+    /// Resize the canvas self-consistently
+    /// Unfortunately also wipes the canvas
+    pub fn resize(&mut self, width: usize, height: usize) {
+        self.width = width;
+        self.height = height;
+        let size = width * height;
+
+        self.pixel_buffer = vec![self.bg_pixel; size];
+        self.toi_buffer = vec![f32::MAX; size];
+        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
+    }
+    /// Return width
+    /// Width made private by default to discourage resizing without resizing other quantities
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    /// Return height
+    /// Height made private by default to discourage resizing without resizing other quantities
+    pub fn height(&self) -> usize {
+        self.height
+    }
     /// Update the frame buffer with whatever the pixel buffer is set to
     pub fn update_frame(&mut self) {
         self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
     }
-
     /// Reshape the vector of pixels to a 2D vector that can be accepted by `Rasterizer`
     fn reshaped_pixels(&self) -> Vec<&[f32]> {
         self.pixel_buffer.chunks(self.width).collect()
     }
-
     /// Utility function for calculating index, given pixel location
     fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
@@ -179,11 +239,8 @@ impl<R: Rasterizer> Canvas<R> {
     /// Set a pixel unconditionally
     /// Will do nothing if pixel out of range
     pub fn set_pixel(&mut self, x: usize, y: usize, val: f32) {
-        match self.pixel_to_index(x, y) {
-            Ok(idx) => {
-                self.pixel_buffer[idx] = val;
-            }
-            Err(_e) => {}
+        if let Ok(idx) = self.pixel_to_index(x, y) {
+            self.pixel_buffer[idx] = val;
         }
     }
     /// Set a pixel conditional on time-of-impact being lower than current buffer value

@@ -98,8 +98,13 @@ pub fn startup() -> Result<()> {
     Ok(())
 }
 
-fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, frame: &mut Frame) {
+fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Frame) {
     let area = frame.size();
+    if (area.width as usize != canvas.width()) || (area.height as usize != canvas.height()) {
+        canvas.resize(area.width as usize, area.height as usize);
+        scene.update_aspect(area.width as usize, area.height as usize);
+        canvas.draw_scene_to_canvas(scene);
+    }
     let out_string: String = canvas.frame_buffer.iter().collect();
     frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
 }
@@ -119,7 +124,7 @@ pub fn run() -> Result<()> {
     // TODO Make all of this async
     loop {
         // TODO Update frame size dynamically
-        terminal.draw(|frame| ui(&mut canvas, frame))?;
+        terminal.draw(|frame| ui(&mut canvas, &mut scene, frame))?;
 
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
