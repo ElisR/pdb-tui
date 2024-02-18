@@ -106,7 +106,9 @@ pub fn startup() -> Result<()> {
 
 fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Frame) {
     let area = frame.size();
-    if (area.width as usize != canvas.width()) || (area.height as usize != canvas.height()) {
+    if (area.width as usize != canvas.render_width())
+        || (area.height as usize != canvas.render_height())
+    {
         canvas.resize(area.width as usize, area.height as usize);
         scene.update_aspect(area.width as usize, area.height as usize);
         canvas.draw_scene_to_canvas(scene);

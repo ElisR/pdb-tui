@@ -186,12 +186,18 @@ pub struct Canvas<R: Rasterizer> {
     pub bg_pixel: f32,
 }
 impl<R: Rasterizer + Default> Canvas<R> {
-    /// Constructor for canvas
-    pub fn new(width: usize, height: usize) -> Self {
+    /// Constructor for canvas.
+    /// Depending on the rasterizer, the canvas may contain more pixels than passed to the constructor.
+    /// This is because the rasterizer may perform some downsampling to produce a string.
+    pub fn new(render_width: usize, render_height: usize) -> Self {
         let bg_pixel = 1.1f32;
 
         // TODO Allow custom rasterizer to be passed into constructor
+        // Recalculate height and width depending on rasterizer
         let rasterizer = R::default();
+        let grid_size = rasterizer.grid_size();
+        let width = grid_size * render_width;
+        let height = grid_size * render_height;
 
         let size = width * height;
         let pixel_buffer = vec![bg_pixel; size];
@@ -209,12 +215,17 @@ impl<R: Rasterizer + Default> Canvas<R> {
     }
 }
 impl<R: Rasterizer> Canvas<R> {
+    /// Get the grid size relating the render size to the size of internal objects
+    /// Not the same because rasterizer may perform subsampling
+    pub fn grid_size(&self) -> usize {
+        self.rasterizer.grid_size()
+    }
     /// Resize the canvas self-consistently
     /// Unfortunately also wipes the canvas
-    pub fn resize(&mut self, width: usize, height: usize) {
-        self.width = width;
-        self.height = height;
-        let size = width * height;
+    pub fn resize(&mut self, render_width: usize, render_height: usize) {
+        self.width = self.grid_size() * render_width;
+        self.height = self.grid_size() * render_height;
+        let size = self.width * self.height;
 
         self.pixel_buffer = vec![self.bg_pixel; size];
         self.toi_buffer = vec![f32::MAX; size];
@@ -222,13 +233,13 @@ impl<R: Rasterizer> Canvas<R> {
     }
     /// Return width
     /// Width made private by default to discourage resizing without resizing other quantities
-    pub fn width(&self) -> usize {
-        self.width
+    pub fn render_width(&self) -> usize {
+        self.width / self.grid_size()
     }
     /// Return height
     /// Height made private by default to discourage resizing without resizing other quantities
-    pub fn height(&self) -> usize {
-        self.height
+    pub fn render_height(&self) -> usize {
+        self.height / self.grid_size()
     }
     /// Update the frame buffer with whatever the pixel buffer is set to
     pub fn update_frame(&mut self) {

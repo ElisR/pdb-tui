@@ -70,9 +70,10 @@ impl Default for BasicAsciiRasterizer {
 pub trait Rasterizer {
     // Convert a vector of slices of pixels to a vector of characters to be printed to the terminal
     fn pixels_to_stdout(&self, pixels: Vec<&[f32]>) -> Vec<char>;
-
     /// Get the character used for the background
-    fn get_bg_char(&self) -> char;
+    fn bg_char(&self) -> char;
+    /// Get the grid-size used for rasterizing
+    fn grid_size(&self) -> usize;
 }
 
 impl Rasterizer for BasicAsciiRasterizer {
@@ -90,9 +91,11 @@ impl Rasterizer for BasicAsciiRasterizer {
         }
         out
     }
-
-    fn get_bg_char(&self) -> char {
+    fn bg_char(&self) -> char {
         self.background
+    }
+    fn grid_size(&self) -> usize {
+        1
     }
 }
 
@@ -105,7 +108,7 @@ mod tests {
         assert_eq!(rasterizer.pixel_to_char(0.15), '@');
         assert_eq!(rasterizer.pixel_to_char(0.65), '=');
         assert_eq!(rasterizer.pixel_to_char(0.85), ':');
-        assert_eq!(rasterizer.pixel_to_char(1.15), rasterizer.get_bg_char());
+        assert_eq!(rasterizer.pixel_to_char(1.15), rasterizer.bg_char());
     }
 
     #[test]
