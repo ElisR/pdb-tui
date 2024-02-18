@@ -13,7 +13,8 @@ use crossterm::{
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{CrosstermBackend, Frame, Terminal},
+    prelude::{CrosstermBackend, Frame, Stylize, Terminal},
+    style::Color,
     text::Text,
     widgets::Paragraph,
 };
@@ -31,38 +32,39 @@ enum NextAction {
 /// Return the next action depending on the latest `KeyEvent`
 fn next_action_from_key(key: KeyEvent) -> NextAction {
     let minor_rotation = std::f32::consts::FRAC_PI_8 / 2.0;
+    let minor_translation = 5.0f32;
     if key.kind == KeyEventKind::Press {
         match key.code {
             KeyCode::Char('q') => NextAction::Quit,
             KeyCode::Char('l') | KeyCode::Right => NextAction::Translate {
-                x: 5.0,
+                x: minor_translation,
                 y: 0.0,
                 z: 0.0,
             },
             KeyCode::Char('h') | KeyCode::Left => NextAction::Translate {
-                x: -5.0,
+                x: -minor_translation,
                 y: 0.0,
                 z: 0.0,
             },
             KeyCode::Char('k') | KeyCode::Up => NextAction::Translate {
                 x: 0.0,
-                y: 5.0,
+                y: minor_translation,
                 z: 0.0,
             },
             KeyCode::Char('j') | KeyCode::Down => NextAction::Translate {
                 x: 0.0,
-                y: -5.0,
+                y: -minor_translation,
                 z: 0.0,
             },
             KeyCode::Char('u') => NextAction::Translate {
                 x: 0.0,
                 y: 0.0,
-                z: 5.0,
+                z: minor_translation,
             },
             KeyCode::Char('d') => NextAction::Translate {
                 x: 0.0,
                 y: 0.0,
-                z: -5.0,
+                z: -minor_translation,
             },
             KeyCode::Char('L') => NextAction::Rotate {
                 axis: Vector3::y(),
@@ -110,7 +112,10 @@ fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Fram
         canvas.draw_scene_to_canvas(scene);
     }
     let out_string: String = canvas.frame_buffer.iter().collect();
-    frame.render_widget(Paragraph::new(Text::raw(&out_string)), area);
+    frame.render_widget(
+        Paragraph::new(Text::raw(&out_string)).fg(Color::Magenta),
+        area,
+    );
 }
 
 pub fn run() -> Result<()> {
