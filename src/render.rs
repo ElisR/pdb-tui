@@ -125,9 +125,11 @@ impl Scene {
             .perspective
             .set_aspect(adjusted_aspect_ratio);
     }
+    /// Adds meshes found at path to existing meshes vector
     pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
         let tobj_meshes = get_meshes_from_obj(path);
-        self.meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        let mut new_meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        self.meshes.append(&mut new_meshes);
         self.scene_projection.update_for_meshes(&self.meshes);
     }
     /// Transform meshes according to tranformation
@@ -337,6 +339,7 @@ impl<R: Rasterizer + Default> Default for Canvas<R> {
 /// Will return values outside of range `0..pixels` if value is outside range `-1.0..1.0`
 /// TODO Check for weird behaviour if output is below range of u16
 /// NOTE Might want to use `i32` instead
+#[allow(dead_code)]
 fn clip_to_pixel(clip_coord: f32, num_pixels: usize) -> usize {
     let pixel_width = 2.0 / num_pixels as f32;
     ((clip_coord + 1.0) / pixel_width).floor() as usize
