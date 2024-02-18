@@ -120,6 +120,7 @@ pub fn run() -> Result<()> {
     let test_obj = "./data/surface.obj";
     let mut scene = Scene::default();
     scene.load_meshes_from_path(test_obj);
+    scene.meshes_to_center();
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
     canvas.draw_scene_to_canvas(&scene);

@@ -1,5 +1,9 @@
 // #![allow(dead_code)]
-use crate::{rasterizer::Rasterizer, read::get_meshes_from_obj, surface::ToTriMesh};
+use crate::{
+    rasterizer::Rasterizer,
+    read::get_meshes_from_obj,
+    surface::{HasCenter, ToTriMesh},
+};
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector3};
 use parry3d::{
@@ -131,6 +135,12 @@ impl Scene {
         for mesh in self.meshes.iter_mut() {
             mesh.transform_vertices(transform);
         }
+    }
+    /// Make the mesh be at the center of the view
+    pub fn meshes_to_center(&mut self) {
+        let com = self.meshes.get_com();
+        let transform = Isometry3::translation(-com.x, -com.y, -com.z);
+        self.transform_meshes(&transform);
     }
     /// Change the view according to transformation
     // TODO Think how to implement this
