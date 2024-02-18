@@ -297,8 +297,11 @@ impl<R: Rasterizer> Canvas<R> {
                     // TODO Consider whether we should take `abs` of intensity
                     if let Some(ri) = toi_result {
                         let normal = ri.normal;
-                        let intensity: f32 =
-                            scene.lights.iter().fold(0.0, |i, l| i + normal.dot(l));
+                        // Taking ReLU of intensity to give darkness if incident on normal pointing in wrong direction
+                        let intensity: f32 = scene
+                            .lights
+                            .iter()
+                            .fold(0.0, |i, l| i + normal.dot(l).max(0.0));
                         self.set_pixel_toi(x, y, intensity, ri.toi);
                     }
                 }

@@ -16,8 +16,8 @@ pub enum RasterizerError {
 impl BasicAsciiRasterizer {
     /// Validating the parameters and raising any errors that should propagate to the constructor
     fn validate_parameters(
-        gradient: &Vec<char>,
-        thresholds: &Vec<f32>,
+        gradient: &[char],
+        thresholds: &[f32],
     ) -> Result<Vec<(f32, f32)>, RasterizerError> {
         if gradient.len() + 1 != thresholds.len() {
             return Err(RasterizerError::GradientNotMatchingThresholds);
@@ -57,10 +57,10 @@ impl BasicAsciiRasterizer {
 impl Default for BasicAsciiRasterizer {
     fn default() -> Self {
         let gradient = vec!['@', '%', '#', '*', '+', '=', '-', ':', '.'];
-        let background = '@';
+        let background = ' ';
         BasicAsciiRasterizer::new(
             gradient,
-            vec![0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            vec![-0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
             background,
         )
         .unwrap()
@@ -100,7 +100,7 @@ impl Rasterizer for BasicAsciiRasterizer {
 mod tests {
     use super::*;
     #[test]
-    fn test_rasterizer() {
+    fn test_default_rasterizer() {
         let rasterizer = BasicAsciiRasterizer::default();
         assert_eq!(rasterizer.pixel_to_char(0.15), '@');
         assert_eq!(rasterizer.pixel_to_char(0.65), '=');
