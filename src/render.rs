@@ -5,7 +5,7 @@ use crate::{
     surface::{HasCenter, ToTriMesh},
 };
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
-use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector3};
+use nalgebra::{Isometry3, Perspective3, Point3, Vector3};
 use parry3d::{
     query::{Ray, RayCast},
     shape::TriMesh,
@@ -24,12 +24,11 @@ const ZFAR_DEFAULT: f32 = 100.0;
 /// This depends on the font being used by the terminal emulator
 const CHAR_ASPECT_RATIO: f32 = 2.0;
 
-pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) {
+/// Take a point in 2D projection of clip space and convert to ray in world space
+pub fn create_ray(x_clip: f32, y: f32, scene: &Scene) -> Ray {
     // Compute two points in clip-space.
-    let near_ndc_point = Point3::new(x, y, -1.0);
-    let far_ndc_point = Point3::new(x, y, 1.0);
-
-    // FIXME Actually use the `view` field of the scene
+    let near_ndc_point = Point3::new(x_clip, y, -1.0);
+    let far_ndc_point = Point3::new(x_clip, y, 1.0);
 
     // Unproject them to view-space.
     let near_view_point = scene
@@ -42,11 +41,12 @@ pub fn create_ray(x: f32, y: f32, scene: &Scene) -> (Point3<f32>, Vector3<f32>) 
         .unproject_point(&far_ndc_point);
 
     // Compute the view-space line parameters.
-    let line_location = near_view_point;
-    // FIXME Turn this into unit normal to avoid TOI being incorrect (currently difficult because of types)
-    // let line_direction = Unit::new_normalize(far_view_point - near_view_point);
-    let line_direction = far_view_point - near_view_point;
-    (line_location, line_direction)
+    let origin: Point3<f32> = scene.view.inverse() * near_view_point;
+    // FIXME Turn this into unit normal to avoid TOI being incorrect
+    // FIXME Check other places which assume maximum TOI
+    let dir: Vector3<f32> = scene.view.inverse() * (far_view_point - near_view_point);
+    // dir.normalize_mut();
+    Ray::new(origin, dir)
 }
 
 /// Adjusts the aspect ratio for the projection according to non-square pixels
@@ -94,7 +94,7 @@ impl Default for SceneProjection {
 /// Holds camera position relative to world coordinates
 /// Also holds list of all the light sources
 pub struct Scene {
-    pub view: Matrix4<f32>,
+    pub view: Isometry3<f32>,
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
     meshes: Vec<TriMesh>,
@@ -108,7 +108,7 @@ impl Scene {
         scene_projection: SceneProjection,
         meshes: Vec<TriMesh>,
     ) -> Self {
-        let view = Matrix4::face_towards(eye, target, up);
+        let view = Isometry3::face_towards(eye, target, up);
         let lights = lights.to_owned();
         Scene {
             view,
@@ -145,8 +145,7 @@ impl Scene {
     /// Change the view according to transformation
     // TODO Think how to implement this
     pub fn transform_view(&mut self, transform: &Isometry3<f32>) {
-        // NOTE The view transformation is a rotation and translation
-        todo!()
+        self.view = transform * self.view;
     }
     /// Resetting the view to point at the center-of-mass of the meshes
     // TODO Write this function
@@ -156,7 +155,7 @@ impl Scene {
 }
 impl Default for Scene {
     fn default() -> Self {
-        let eye = Point3::new(0.0f32, 0.0f32, -10.0f32);
+        let eye = Point3::new(0.0f32, 0.0f32, -50.0f32);
         let target = Point3::new(0.0f32, 0.0f32, 0.0f32);
         let up = Vector3::new(0.0f32, 1.0f32, 0.0f32);
         let lights = vec![
@@ -287,10 +286,7 @@ impl<R: Rasterizer> Canvas<R> {
             for y in 0..self.height {
                 let x_clip = pixel_to_clip(x, self.width);
                 let y_clip = pixel_to_clip(y, self.height);
-
-                let (ray_loc, ray_dir) = create_ray(x_clip, y_clip, scene);
-                let ray: Ray = Ray::new(ray_loc, ray_dir);
-
+                let ray = create_ray(x_clip, y_clip, scene);
                 for mesh in scene.meshes.iter() {
                     // FIXME Make sure max_toi is reasonable
                     let toi_result = mesh.cast_local_ray_and_get_normal(
@@ -299,7 +295,6 @@ impl<R: Rasterizer> Canvas<R> {
                         true,
                     );
                     // TODO Consider whether we should take `abs` of intensity
-                    // FIXME Make sure background is returned if no collision
                     if let Some(ri) = toi_result {
                         let normal = ri.normal;
                         let intensity: f32 =

@@ -30,6 +30,7 @@ enum NextAction {
 
 /// Return the next action depending on the latest `KeyEvent`
 fn next_action_from_key(key: KeyEvent) -> NextAction {
+    let minor_rotation = std::f32::consts::FRAC_PI_8 / 2.0;
     if key.kind == KeyEventKind::Press {
         match key.code {
             KeyCode::Char('q') => NextAction::Quit,
@@ -65,19 +66,19 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
             },
             KeyCode::Char('L') => NextAction::Rotate {
                 axis: Vector3::y(),
-                angle: std::f32::consts::FRAC_PI_8,
+                angle: minor_rotation,
             },
             KeyCode::Char('H') => NextAction::Rotate {
                 axis: Vector3::y(),
-                angle: -std::f32::consts::FRAC_PI_8,
+                angle: -minor_rotation,
             },
             KeyCode::Char('K') => NextAction::Rotate {
                 axis: Vector3::x(),
-                angle: -std::f32::consts::FRAC_PI_8,
+                angle: -minor_rotation,
             },
             KeyCode::Char('J') => NextAction::Rotate {
                 axis: Vector3::x(),
-                angle: -std::f32::consts::FRAC_PI_8,
+                angle: -minor_rotation,
             },
             KeyCode::Char('s') => NextAction::Save,
             _ => NextAction::Nothing,
@@ -142,7 +143,8 @@ pub fn run() -> Result<()> {
                     }
                     NextAction::Translate { x, y, z } => {
                         let transform = Isometry3::translation(x, y, z);
-                        scene.transform_meshes(&transform);
+                        // scene.transform_meshes(&transform);
+                        scene.transform_view(&transform);
                         canvas.draw_scene_to_canvas(&scene);
                     }
                     NextAction::Save => {
