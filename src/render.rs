@@ -185,16 +185,14 @@ pub struct Canvas<R: Rasterizer> {
     /// Pixel intensity used for the background
     pub bg_pixel: f32,
 }
-impl<R: Rasterizer + Default> Canvas<R> {
+impl<R: Rasterizer> Canvas<R> {
     /// Constructor for canvas.
     /// Depending on the rasterizer, the canvas may contain more pixels than passed to the constructor.
     /// This is because the rasterizer may perform some downsampling to produce a string.
-    pub fn new(render_width: usize, render_height: usize) -> Self {
+    pub fn new(render_width: usize, render_height: usize, rasterizer: R) -> Self {
         let bg_pixel = 1.1f32;
 
-        // TODO Allow custom rasterizer to be passed into constructor
         // Recalculate height and width depending on rasterizer
-        let rasterizer = R::default();
         let grid_size = rasterizer.grid_size();
         let width = grid_size * render_width;
         let height = grid_size * render_height;
@@ -342,7 +340,8 @@ impl<R: Rasterizer> Canvas<R> {
 
 impl<R: Rasterizer + Default> Default for Canvas<R> {
     fn default() -> Self {
-        Canvas::new(SCREEN_PIXELS_X, SCREEN_PIXELS_Y)
+        let rasterizer = R::default();
+        Canvas::new(SCREEN_PIXELS_X, SCREEN_PIXELS_Y, rasterizer)
     }
 }
 
