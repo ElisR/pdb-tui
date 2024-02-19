@@ -66,13 +66,13 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
                 y: 0.0,
                 z: -minor_translation,
             },
-            KeyCode::Char('L') => NextAction::Rotate {
-                axis: Vector3::y(),
-                angle: minor_rotation,
-            },
             KeyCode::Char('H') => NextAction::Rotate {
                 axis: Vector3::y(),
                 angle: -minor_rotation,
+            },
+            KeyCode::Char('L') => NextAction::Rotate {
+                axis: Vector3::y(),
+                angle: minor_rotation,
             },
             KeyCode::Char('K') => NextAction::Rotate {
                 axis: Vector3::x(),
@@ -80,7 +80,7 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
             },
             KeyCode::Char('J') => NextAction::Rotate {
                 axis: Vector3::x(),
-                angle: -minor_rotation,
+                angle: minor_rotation,
             },
             KeyCode::Char('s') => NextAction::Save,
             _ => NextAction::Nothing,
