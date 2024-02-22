@@ -90,6 +90,33 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
+fn update<R: Rasterizer>(app: &mut App<R>, next_action: NextAction) {
+    match next_action {
+        NextAction::Rotate { axis, angle } => {
+            let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
+            let transform = Isometry3::from_parts(Translation3::identity(), rotation);
+            app.scene.transform_meshes(&transform);
+            app.canvas.draw_scene_to_canvas(&app.scene);
+        }
+        NextAction::Translate { x, y, z } => {
+            let transform = Isometry3::translation(x, y, z);
+            // scene.transform_meshes(&transform);
+            app.scene.transform_view(&transform);
+            app.canvas.draw_scene_to_canvas(&app.scene);
+        }
+        NextAction::Save => {
+            let now: DateTime<Local> = Local::now();
+            let path = format!("canvas_screenshot_{}.png", now.format("%Y%m%d_%H%M%S"));
+            // TODO Bubble this up to an error popup if something goes wrong
+            let _ = app.canvas.save_image(path);
+        }
+        NextAction::Quit => {
+            app.should_quit = true;
+        }
+        NextAction::Nothing => {}
+    };
+}
+
 /// Perform shutdown of terminal
 pub fn shutdown() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
@@ -120,51 +147,38 @@ fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Fram
     );
 }
 
+// TODO Eventually derive debug
+#[derive(Default)]
+pub struct App<R: Rasterizer> {
+    pub should_quit: bool,
+
+    pub scene: Scene,
+    pub canvas: Canvas<R>,
+}
+
 pub fn run() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
     // Load and draw
     let test_obj = "./data/surface.obj";
-    let mut scene = Scene::default();
-    scene.load_meshes_from_path(test_obj);
-    scene.meshes_to_center();
-    let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
-    canvas.draw_scene_to_canvas(&scene);
+    let mut app = App::<BasicAsciiRasterizer>::default();
+    app.scene.load_meshes_from_path(test_obj);
+    app.scene.meshes_to_center();
+    app.canvas.draw_scene_to_canvas(&app.scene);
 
     // TODO Make all of this async
     loop {
-        // TODO Update frame size dynamically
-        terminal.draw(|frame| ui(&mut canvas, &mut scene, frame))?;
+        terminal.draw(|frame| ui(&mut app.canvas, &mut app.scene, frame))?;
 
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
                 let next_action = next_action_from_key(key);
-                match next_action {
-                    NextAction::Rotate { axis, angle } => {
-                        let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
-                        let transform = Isometry3::from_parts(Translation3::identity(), rotation);
-                        scene.transform_meshes(&transform);
-                        canvas.draw_scene_to_canvas(&scene);
-                    }
-                    NextAction::Translate { x, y, z } => {
-                        let transform = Isometry3::translation(x, y, z);
-                        // scene.transform_meshes(&transform);
-                        scene.transform_view(&transform);
-                        canvas.draw_scene_to_canvas(&scene);
-                    }
-                    NextAction::Save => {
-                        let now: DateTime<Local> = Local::now();
-                        let path = format!("canvas_screenshot_{}.png", now.format("%Y%m%d_%H%M%S"));
-                        // TODO Bubble this up to an error popup if something goes wrong
-                        let _ = canvas.save_image(path);
-                    }
-                    NextAction::Quit => {
-                        break;
-                    }
-                    NextAction::Nothing => {}
-                };
+                update(&mut app, next_action);
+                if app.should_quit {
+                    break;
+                }
             }
         }
     }

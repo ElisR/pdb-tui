@@ -56,6 +56,7 @@ fn adjust_aspect(aspect_ratio: f32, char_aspect_ratio: f32) -> f32 {
 
 /// Wrapper struct holding the projection information defining the frustum shape
 /// Needed to be able to implement default for quick testing
+#[derive(Debug)]
 pub struct SceneProjection {
     pub perspective: Perspective3<f32>,
 }
@@ -93,6 +94,7 @@ impl Default for SceneProjection {
 ///
 /// Holds camera position relative to world coordinates
 /// Also holds list of all the light sources
+// TODO Implement debug for this manually
 pub struct Scene {
     pub view: Isometry3<f32>,
     pub lights: Vec<Vector3<f32>>,
@@ -145,7 +147,6 @@ impl Scene {
         self.transform_meshes(&transform);
     }
     /// Change the view according to transformation
-    // TODO Think how to implement this
     pub fn transform_view(&mut self, transform: &Isometry3<f32>) {
         self.view = transform * self.view;
     }
@@ -174,6 +175,7 @@ pub enum CanvasError {
     PixelOutOfRange { x: usize, y: usize },
 }
 
+#[derive(Debug)]
 pub struct Canvas<R: Rasterizer> {
     pub frame_buffer: Vec<char>,
     // TODO Consider changing pixel buffer to 2D array for more convenience
