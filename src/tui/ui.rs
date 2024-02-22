@@ -27,6 +27,7 @@ enum NextAction {
     Rotate { axis: Vector3<f32>, angle: f32 },
     Save,
     Nothing,
+    Help,
 }
 
 /// Return the next action depending on the latest `KeyEvent`
@@ -83,6 +84,7 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
                 angle: minor_rotation,
             },
             KeyCode::Char('s') => NextAction::Save,
+            KeyCode::Char('?') => NextAction::Help,
             _ => NextAction::Nothing,
         }
     } else {
@@ -90,7 +92,7 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
-fn update<R: Rasterizer>(app: &mut App<R>, next_action: NextAction) {
+fn update<R: Rasterizer>(app: &mut App<R, Rendering>, next_action: NextAction) {
     match next_action {
         NextAction::Rotate { axis, angle } => {
             let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
@@ -112,6 +114,9 @@ fn update<R: Rasterizer>(app: &mut App<R>, next_action: NextAction) {
         }
         NextAction::Quit => {
             app.should_quit = true;
+        }
+        NextAction::Help => {
+            // TODO Actually do something when help key is pressed
         }
         NextAction::Nothing => {}
     };
@@ -149,12 +154,20 @@ fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Fram
 
 // TODO Eventually derive debug
 #[derive(Default)]
-pub struct App<R: Rasterizer> {
+pub struct App<R: Rasterizer, V: ValidState> {
     pub should_quit: bool,
 
     pub scene: Scene,
     pub canvas: Canvas<R>,
+    pub state: V,
 }
+
+/// Trait used for managing valid state of UI
+pub trait ValidState {}
+
+#[derive(Default)]
+pub struct Rendering {}
+impl ValidState for Rendering {}
 
 pub fn run() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -163,7 +176,7 @@ pub fn run() -> Result<()> {
     // Load and draw
     let test_obj = "./data/surface.obj";
 
-    let mut app = App::<BasicAsciiRasterizer>::default();
+    let mut app = App::<BasicAsciiRasterizer, Rendering>::default();
     app.scene.load_meshes_from_path(test_obj);
     app.scene.meshes_to_center();
     app.canvas.draw_scene_to_canvas(&app.scene);
