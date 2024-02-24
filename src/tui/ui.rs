@@ -2,6 +2,7 @@
 use crate::{
     rasterizer::{BasicAsciiRasterizer, Rasterizer},
     render::{Canvas, Scene},
+    tui::popup::HelpPopup,
 };
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 
@@ -12,10 +13,11 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+// TODO Consider just importing everything from `prelude` and `widgets`
 use ratatui::{
-    prelude::{CrosstermBackend, Frame, Stylize, Terminal},
+    prelude::{CrosstermBackend, Frame, Rect, Style, Stylize, Terminal},
     style::Color,
-    text::Text,
+    text::{Line, Text},
     widgets::Paragraph,
 };
 use std::io::{stdout, Result};
@@ -94,21 +96,49 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct App<S: StateMarker> {
     should_quit: bool,
 
     state: std::marker::PhantomData<S>,
 }
 
+/// Marker trait used for managing valid state of UI
 pub trait StateMarker {}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct RenderState;
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct HelpState;
+
+impl StateMarker for HelpState {}
+impl StateMarker for RenderState {}
+
+impl From<App<HelpState>> for App<RenderState> {
+    fn from(value: App<HelpState>) -> Self {
+        Self {
+            should_quit: value.should_quit,
+            state: std::marker::PhantomData::<RenderState>,
+        }
+    }
+}
+
+impl From<App<RenderState>> for App<HelpState> {
+    fn from(value: App<RenderState>) -> Self {
+        Self {
+            should_quit: value.should_quit,
+            state: std::marker::PhantomData::<HelpState>,
+        }
+    }
+}
 
 pub enum StateWrapper {
     Rendering(App<RenderState>),
     Helping(App<HelpState>),
 }
 
-/// Marker trait used for managing valid state of UI
+// Unhappy with how this requires matching every state arm
 impl StateWrapper {
     pub fn update<R: Rasterizer>(
         mut self,
@@ -124,40 +154,45 @@ impl StateWrapper {
                         let transform = Isometry3::from_parts(Translation3::identity(), rotation);
                         scene.transform_meshes(&transform);
                         canvas.draw_scene_to_canvas(scene);
+                        self
                     }
                     NextAction::Translate { x, y, z } => {
                         let transform = Isometry3::translation(x, y, z);
                         // scene.transform_meshes(&transform);
                         scene.transform_view(&transform);
                         canvas.draw_scene_to_canvas(scene);
+                        self
                     }
                     NextAction::Save => {
                         let now: DateTime<Local> = Local::now();
                         let path = format!("canvas_screenshot_{}.png", now.format("%Y%m%d_%H%M%S"));
                         // TODO Bubble this up to an error popup if something goes wrong
                         let _ = canvas.save_image(path);
+                        self
                     }
                     NextAction::Quit => {
                         app.should_quit = true;
+                        self
                     }
                     NextAction::Help => {
                         // TODO Actually do something when help key is pressed
+                        StateWrapper::Helping(App::<HelpState>::from(*app))
                     }
-                    _ => {}
+                    _ => self,
                 }
-                self
             }
             Self::Helping(ref mut app) => {
                 match next_action {
                     NextAction::Quit => {
                         app.should_quit = true;
+                        self
                     }
                     NextAction::Back => {
                         // TODO Move back to rendering state
+                        StateWrapper::Rendering(App::<RenderState>::from(*app))
                     }
-                    _ => {}
+                    _ => self,
                 }
-                self
             }
         }
     }
@@ -168,16 +203,80 @@ impl StateWrapper {
             Self::Helping(app) => app.should_quit,
         }
     }
+
+    pub fn ui<R: Rasterizer>(&self, canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Frame) {
+        // TODO Once line colour issue is fixed, change this back to be the whole screen
+        let area = frame.size();
+        let render_area = Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height - 1,
+        };
+        if (render_area.width as usize != canvas.render_width())
+            || (render_area.height as usize != canvas.render_height())
+        {
+            canvas.resize(render_area.width as usize, render_area.height as usize);
+            scene.update_aspect(render_area.width as usize, render_area.height as usize);
+            canvas.draw_scene_to_canvas(scene);
+        }
+        let out_string: String = canvas.frame_buffer.iter().collect();
+        let widget = Paragraph::new(Text::raw(&out_string)).fg(Color::Blue);
+        frame.render_widget(widget, render_area);
+
+        match self {
+            Self::Helping(_) => {
+                let popup_area = Rect {
+                    x: area.width / 3,
+                    y: area.height / 4,
+                    width: area.width / 3,
+                    height: area.height / 2,
+                };
+
+                // TODO Move this to constant in another module
+                let help_text = vec![
+                    Line::from("q:      Quit the application."),
+                    Line::from("<Esc>:  Back"),
+                    Line::from(""),
+                    Line::from("d:      Zoom out."),
+                    Line::from("u:      Zoom in."),
+                    Line::from(""),
+                    Line::from("h:      Move left."),
+                    Line::from("l:      Move right."),
+                    Line::from("k:      Move up."),
+                    Line::from("j:      Move down."),
+                    Line::from(""),
+                    Line::from("H:      Rotate left."),
+                    Line::from("L:      Rotate right."),
+                    Line::from("K:      Rotate up."),
+                    Line::from("J:      Rotate down."),
+                ];
+
+                let popup = HelpPopup::default()
+                    .content(help_text)
+                    .style(Style::new().black())
+                    .title("Help")
+                    .title_style(Style::new().bold())
+                    .border_style(Style::new().red());
+                frame.render_widget(popup, popup_area);
+            }
+            Self::Rendering(_) => {
+                let bottom = Rect {
+                    x: 0,
+                    y: area.height - 1,
+                    width: area.width,
+                    height: 1,
+                }
+                .clamp(area);
+                // TODO Work out how to avoid whole line being coloured the same
+                let text = Text::raw("Press ? for help.")
+                    .style(Style::new().red())
+                    .alignment(ratatui::layout::Alignment::Right);
+                frame.render_widget(text, bottom);
+            }
+        }
+    }
 }
-
-#[derive(Default)]
-pub struct RenderState;
-
-#[derive(Default)]
-pub struct HelpState;
-
-impl StateMarker for HelpState {}
-impl StateMarker for RenderState {}
 
 /// Perform shutdown of terminal
 pub fn shutdown() -> Result<()> {
@@ -191,22 +290,6 @@ pub fn startup() -> Result<()> {
     enable_raw_mode()?;
     execute!(std::io::stderr(), EnterAlternateScreen)?;
     Ok(())
-}
-
-fn ui<R: Rasterizer>(canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Frame) {
-    let area = frame.size();
-    if (area.width as usize != canvas.render_width())
-        || (area.height as usize != canvas.render_height())
-    {
-        canvas.resize(area.width as usize, area.height as usize);
-        scene.update_aspect(area.width as usize, area.height as usize);
-        canvas.draw_scene_to_canvas(scene);
-    }
-    let out_string: String = canvas.frame_buffer.iter().collect();
-    frame.render_widget(
-        Paragraph::new(Text::raw(&out_string)).fg(Color::Magenta),
-        area,
-    );
 }
 
 pub fn run() -> Result<()> {
@@ -225,7 +308,7 @@ pub fn run() -> Result<()> {
 
     // TODO Make all of this async
     loop {
-        terminal.draw(|frame| ui(&mut canvas, &mut scene, frame))?;
+        terminal.draw(|frame| app.ui(&mut canvas, &mut scene, frame))?;
 
         if event::poll(std::time::Duration::from_millis(3))? {
             if let event::Event::Key(key) = event::read()? {
