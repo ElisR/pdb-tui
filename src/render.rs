@@ -295,8 +295,8 @@ impl<R: Rasterizer> Canvas<R> {
     /// Update the canvas with the current state of the scene
     pub fn draw_scene_to_canvas(&mut self, scene: &Scene) {
         self.flush_buffers();
-        for x in 0..self.width {
-            for y in 0..self.height {
+        for y in 0..self.height {
+            for x in 0..self.width {
                 let x_clip = pixel_to_clip(x, self.width);
                 let y_clip = pixel_to_clip(y, self.height);
                 let ray = create_ray(x_clip, y_clip, scene);
