@@ -2,7 +2,10 @@
 use crate::{
     rasterizer::{BasicAsciiRasterizer, Rasterizer},
     render::{Canvas, Scene},
-    tui::popup::HelpPopup,
+    tui::{
+        popup::Popup,
+        state::{App, BenchmarkState, HelpState, RenderState},
+    },
 };
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 
@@ -96,42 +99,6 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct App<S: StateMarker> {
-    should_quit: bool,
-
-    state: std::marker::PhantomData<S>,
-}
-
-/// Marker trait used for managing valid state of UI
-pub trait StateMarker {}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct RenderState;
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct HelpState;
-
-impl StateMarker for HelpState {}
-impl StateMarker for RenderState {}
-
-impl From<App<HelpState>> for App<RenderState> {
-    fn from(value: App<HelpState>) -> Self {
-        Self {
-            should_quit: value.should_quit,
-            state: std::marker::PhantomData::<RenderState>,
-        }
-    }
-}
-
-impl From<App<RenderState>> for App<HelpState> {
-    fn from(value: App<RenderState>) -> Self {
-        Self {
-            should_quit: value.should_quit,
-            state: std::marker::PhantomData::<HelpState>,
-        }
-    }
-}
 
 pub enum StateWrapper {
     Rendering(App<RenderState>),

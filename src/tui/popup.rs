@@ -8,7 +8,7 @@ use ratatui::{
 use derive_setters::Setters;
 
 #[derive(Debug, Default, Setters)]
-pub struct HelpPopup<'a> {
+pub struct Popup<'a> {
     #[setters(into)]
     title: Line<'a>,
     #[setters(into)]
@@ -18,7 +18,7 @@ pub struct HelpPopup<'a> {
     style: Style,
 }
 
-impl Widget for HelpPopup<'_> {
+impl Widget for Popup<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
         let block = Block::new()
