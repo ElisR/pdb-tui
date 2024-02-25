@@ -30,16 +30,11 @@ pub trait ValidShape {
             None => Point3::origin(),
         }
     }
-    /// Transform shapes according to transformation
-    fn transform(&mut self, transform: &Isometry3<f32>);
 }
 
 impl ValidShape for TriMesh {
     fn mass_properties_default(&self) -> Option<MassProperties> {
         Some(self.mass_properties(DEFAULT_DENSITY))
-    }
-    fn transform(&mut self, transform: &Isometry3<f32>) {
-        self.transform_vertices(transform);
     }
 }
 
@@ -47,25 +42,16 @@ impl ValidShape for Compound {
     fn mass_properties_default(&self) -> Option<MassProperties> {
         Some(self.mass_properties(DEFAULT_DENSITY))
     }
-    fn transform(&mut self, _transform: &Isometry3<f32>) {
-        // TODO Write this function
-        // Currently difficult without copying the entirety
-        todo!()
-    }
 }
 
 /// Calculate center of many shapes
 /// Returns the origin if vector is empty
-impl<S: ValidShape> ValidShape for Vec<S> {
+/// TODO Change to act on slice
+impl<S: ValidShape> ValidShape for Vec<(Isometry3<f32>, S)> {
     fn mass_properties_default(&self) -> Option<MassProperties> {
         self.iter()
-            .filter_map(|m| m.mass_properties_default())
+            .filter_map(|(t, s)| s.mass_properties_default().map(|mp| mp.transform_by(t)))
             .reduce(|sum_m, m| sum_m + m)
-    }
-    fn transform(&mut self, transform: &Isometry3<f32>) {
-        for shape in self.iter_mut() {
-            shape.transform(transform)
-        }
     }
 }
 

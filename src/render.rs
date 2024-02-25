@@ -62,23 +62,23 @@ pub struct SceneProjection {
 }
 impl SceneProjection {
     pub fn new(znear: f32, zfar: f32, aspect_ratio: f32, fovy: f32) -> Self {
-        // FIXME Think if divide or multiply
         let adjusted_aspect_ratio = adjust_aspect(aspect_ratio, CHAR_ASPECT_RATIO);
         let perspective = Perspective3::new(adjusted_aspect_ratio, fovy, znear, zfar);
         SceneProjection { perspective }
     }
     /// Create new projection that fits meshes into `znear` and `zfar`
     /// Will resort to default `znear` and `zfar` if slice of meshes is empty
-    pub fn update_for_meshes(&mut self, meshes: &[TriMesh]) {
+    // FIXME Update for new shapes defined in scene
+    pub fn update_for_shapes(&mut self, shapes: &[(Isometry3<f32>, TriMesh)]) {
         // FIXME Have this not be tied to orientation, maybe by using sphere
-        let znear = meshes
+        let znear = shapes
             .iter()
-            .map(|m| m.local_aabb().mins.z)
+            .map(|(t, m)| m.aabb(t).mins.z)
             .reduce(f32::min)
             .unwrap_or(ZNEAR_DEFAULT);
-        let zfar = meshes
+        let zfar = shapes
             .iter()
-            .map(|m| m.local_aabb().maxs.z)
+            .map(|(t, m)| m.aabb(t).maxs.z)
             .reduce(f32::max)
             .unwrap_or(ZFAR_DEFAULT);
         self.perspective.set_znear_and_zfar(znear, zfar);
@@ -100,7 +100,7 @@ pub struct Scene<S: RayCast = TriMesh> {
     pub view: Isometry3<f32>,
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
-    shapes: Vec<S>,
+    shapes: Vec<(Isometry3<f32>, S)>,
 }
 
 impl<S: RayCast + ValidShape> Scene<S> {
@@ -110,7 +110,7 @@ impl<S: RayCast + ValidShape> Scene<S> {
         up: &Vector3<f32>,
         lights: &[Vector3<f32>],
         scene_projection: SceneProjection,
-        shapes: Vec<S>,
+        shapes: Vec<(Isometry3<f32>, S)>,
     ) -> Self {
         let view = Isometry3::face_towards(eye, target, up);
         let lights = lights.to_owned();
@@ -133,8 +133,12 @@ impl<S: RayCast + ValidShape> Scene<S> {
     pub fn transform_view(&mut self, transform: &Isometry3<f32>) {
         self.view = transform * self.view;
     }
+    /// Transform shapes by a transformation
+    /// Internally, prepends trasnformation to existing internal transformation
     pub fn transform_shapes(&mut self, transform: &Isometry3<f32>) {
-        self.shapes.transform(transform);
+        for (og_transform, _) in self.shapes.iter_mut() {
+            *og_transform = transform * *og_transform;
+        }
     }
     /// Make the mesh be at the center of the view
     pub fn shapes_to_center(&mut self) {
@@ -153,9 +157,13 @@ impl Scene<TriMesh> {
     /// Adds meshes found at path to existing meshes vector
     pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
         let tobj_meshes = get_meshes_from_obj(path);
-        let mut new_meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        let mut new_meshes = tobj_meshes
+            .iter()
+            .map(|m| m.to_tri_mesh())
+            .map(|m| (Isometry3::identity(), m))
+            .collect();
         self.shapes.append(&mut new_meshes);
-        self.scene_projection.update_for_meshes(&self.shapes);
+        self.scene_projection.update_for_shapes(&self.shapes);
     }
 }
 
@@ -311,9 +319,10 @@ impl<R: Rasterizer> Canvas<R> {
                 let y_clip = pixel_to_clip(y, self.height);
                 let ray = create_ray(x_clip, y_clip, scene);
                 // FIXME make sure this works when using something other than meshes
-                for mesh in scene.shapes.iter() {
+                for (transform, shape) in scene.shapes.iter() {
                     // FIXME Make sure max_toi is reasonable
-                    let toi_result = mesh.cast_local_ray_and_get_normal(
+                    let toi_result = shape.cast_ray_and_get_normal(
+                        transform,
                         &ray,
                         scene.scene_projection.perspective.zfar() + 100.0,
                         true,
