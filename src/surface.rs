@@ -1,6 +1,6 @@
-use nalgebra::Point3;
+use nalgebra::{Isometry3, Point3};
 use parry3d::mass_properties::MassProperties;
-use parry3d::shape::TriMesh;
+use parry3d::shape::{Compound, Shape, TriMesh};
 use tobj::Mesh;
 
 const DEFAULT_DENSITY: f32 = 1.0;
@@ -22,26 +22,49 @@ impl ToTriMesh for Mesh {
 }
 
 /// Trait for something whose center can be calculated
-pub trait HasCenter {
-    fn get_com(&self) -> Point3<f32>;
-}
-
-impl HasCenter for TriMesh {
+pub trait ValidShape {
+    fn mass_properties_default(&self) -> Option<MassProperties>;
     fn get_com(&self) -> Point3<f32> {
-        MassProperties::from_trimesh(DEFAULT_DENSITY, self.vertices(), self.indices()).local_com
-    }
-}
-/// Calculate center of many meshes
-/// Returns the origin if vector is empty
-impl HasCenter for Vec<TriMesh> {
-    fn get_com(&self) -> Point3<f32> {
-        let mass = self
-            .iter()
-            .map(|m| MassProperties::from_trimesh(DEFAULT_DENSITY, m.vertices(), m.indices()))
-            .reduce(|sum_m, m| sum_m + m);
-        match mass {
+        match self.mass_properties_default() {
             Some(mp) => mp.local_com,
             None => Point3::origin(),
+        }
+    }
+    /// Transform shapes according to transformation
+    fn transform(&mut self, transform: &Isometry3<f32>);
+}
+
+impl ValidShape for TriMesh {
+    fn mass_properties_default(&self) -> Option<MassProperties> {
+        Some(self.mass_properties(DEFAULT_DENSITY))
+    }
+    fn transform(&mut self, transform: &Isometry3<f32>) {
+        self.transform_vertices(transform);
+    }
+}
+
+impl ValidShape for Compound {
+    fn mass_properties_default(&self) -> Option<MassProperties> {
+        Some(self.mass_properties(DEFAULT_DENSITY))
+    }
+    fn transform(&mut self, _transform: &Isometry3<f32>) {
+        // TODO Write this function
+        // Currently difficult without copying the entirety
+        todo!()
+    }
+}
+
+/// Calculate center of many shapes
+/// Returns the origin if vector is empty
+impl<S: ValidShape> ValidShape for Vec<S> {
+    fn mass_properties_default(&self) -> Option<MassProperties> {
+        self.iter()
+            .filter_map(|m| m.mass_properties_default())
+            .reduce(|sum_m, m| sum_m + m)
+    }
+    fn transform(&mut self, transform: &Isometry3<f32>) {
+        for shape in self.iter_mut() {
+            shape.transform(transform)
         }
     }
 }
