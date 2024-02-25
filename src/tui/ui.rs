@@ -217,7 +217,8 @@ impl StateWrapper {
                 let help_text = vec![
                     Line::from("q:      Quit the application."),
                     Line::from("b:      Benchmark rendering."),
-                    Line::from("<Esc>:  Back"),
+                    Line::from("s:      Save screenshot."),
+                    Line::from("<Esc>:  Back."),
                     Line::from(""),
                     Line::from("d:      Zoom out."),
                     Line::from("u:      Zoom in."),
