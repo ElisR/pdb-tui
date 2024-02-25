@@ -24,6 +24,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 use std::io::{stdout, Result};
+use std::time::Instant;
 
 /// Enum holding the possible things that will happen after an action
 pub enum NextAction {
@@ -34,6 +35,7 @@ pub enum NextAction {
     Nothing,
     Help,
     Back,
+    Benchmark,
 }
 
 /// Return the next action depending on the latest `KeyEvent`
@@ -91,6 +93,7 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
             },
             KeyCode::Char('s') => NextAction::Save,
             KeyCode::Char('?') => NextAction::Help,
+            KeyCode::Char('b') => NextAction::Benchmark,
             KeyCode::Esc => NextAction::Back,
             _ => NextAction::Nothing,
         }
@@ -99,10 +102,12 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
+// TODO Move all this state marker stuff to another module
 
 pub enum StateWrapper {
     Rendering(App<RenderState>),
     Helping(App<HelpState>),
+    Benchmarking(App<BenchmarkState>),
 }
 
 // Unhappy with how this requires matching every state arm
@@ -145,22 +150,28 @@ impl StateWrapper {
                         // TODO Actually do something when help key is pressed
                         StateWrapper::Helping(App::<HelpState>::from(*app))
                     }
-                    _ => self,
-                }
-            }
-            Self::Helping(ref mut app) => {
-                match next_action {
-                    NextAction::Quit => {
-                        app.should_quit = true;
-                        self
-                    }
-                    NextAction::Back => {
-                        // TODO Move back to rendering state
-                        StateWrapper::Rendering(App::<RenderState>::from(*app))
+                    NextAction::Benchmark => {
+                        StateWrapper::Benchmarking(App::<BenchmarkState>::from(*app))
                     }
                     _ => self,
                 }
             }
+            Self::Helping(ref mut app) => match next_action {
+                NextAction::Quit => {
+                    app.should_quit = true;
+                    self
+                }
+                NextAction::Back => StateWrapper::Rendering(App::<RenderState>::from(*app)),
+                _ => self,
+            },
+            Self::Benchmarking(ref mut app) => match next_action {
+                NextAction::Quit => {
+                    app.should_quit = true;
+                    self
+                }
+                NextAction::Back => StateWrapper::Rendering(App::<RenderState>::from(*app)),
+                _ => self,
+            },
         }
     }
 
@@ -168,6 +179,7 @@ impl StateWrapper {
         match self {
             Self::Rendering(app) => app.should_quit,
             Self::Helping(app) => app.should_quit,
+            Self::Benchmarking(app) => app.should_quit,
         }
     }
 
@@ -180,9 +192,10 @@ impl StateWrapper {
             width: area.width,
             height: area.height - 1,
         };
-        if (render_area.width as usize != canvas.render_width())
-            || (render_area.height as usize != canvas.render_height())
-        {
+
+        let area_changed = (render_area.width as usize != canvas.render_width())
+            || (render_area.height as usize != canvas.render_height());
+        if area_changed {
             canvas.resize(render_area.width as usize, render_area.height as usize);
             scene.update_aspect(render_area.width as usize, render_area.height as usize);
             canvas.draw_scene_to_canvas(scene);
@@ -203,6 +216,7 @@ impl StateWrapper {
                 // TODO Move this to constant in another module
                 let help_text = vec![
                     Line::from("q:      Quit the application."),
+                    Line::from("b:      Benchmark rendering."),
                     Line::from("<Esc>:  Back"),
                     Line::from(""),
                     Line::from("d:      Zoom out."),
@@ -219,7 +233,9 @@ impl StateWrapper {
                     Line::from("J:      Rotate down."),
                 ];
 
-                let popup = HelpPopup::default()
+                // TODO Work out how to properly align key and description
+                // TODO Work out how to colour keys differently to description
+                let popup = Popup::default()
                     .content(help_text)
                     .style(Style::new().black())
                     .title("Help")
@@ -240,6 +256,29 @@ impl StateWrapper {
                     .style(Style::new().red())
                     .alignment(ratatui::layout::Alignment::Right);
                 frame.render_widget(text, bottom);
+            }
+            Self::Benchmarking(_) => {
+                // TODO Make this not spam numbers
+                let now = Instant::now();
+                canvas.draw_scene_to_canvas(scene);
+                let new_now = Instant::now();
+                let frame_time = new_now.duration_since(now);
+                let popup_area = Rect {
+                    x: area.width / 4,
+                    y: area.height / 4,
+                    width: area.width / 2,
+                    height: 3,
+                };
+                let popup = Popup::default()
+                    .content(format!(
+                        "Rendering {} * {} scene took {:?}",
+                        area.width, area.height, frame_time
+                    ))
+                    .style(Style::new().black())
+                    .title("Benchmark")
+                    .title_style(Style::new().bold())
+                    .border_style(Style::new().red());
+                frame.render_widget(popup, popup_area);
             }
         }
     }
