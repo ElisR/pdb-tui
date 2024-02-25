@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use crate::{
     rasterizer::{BasicAsciiRasterizer, Rasterizer},
-    render::{Canvas, Scene},
+    render::Canvas,
+    scene::Scene,
     tui::{
         popup::Popup,
         state::{App, BenchmarkState, HelpState, RenderState},
