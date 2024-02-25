@@ -6,9 +6,10 @@ use crate::{
 use nalgebra::{Isometry3, Perspective3, Point3, Vector3};
 use parry3d::{
     query::{Ray, RayCast},
-    shape::{Compound, TriMesh},
+    shape::{Ball, Compound, SharedShape, TriMesh},
 };
 use std::path::Path;
+use std::sync::Arc;
 
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
 /// Default for FOV in radians
@@ -21,7 +22,7 @@ const ZFAR_DEFAULT: f32 = 100.0;
 const CHAR_ASPECT_RATIO: f32 = 2.0;
 
 /// Take a point in 2D projection of clip space and convert to ray in world space
-pub fn create_ray(x_clip: f32, y: f32, scene: &Scene) -> Ray {
+pub fn create_ray<S: RayCast + ValidShape>(x_clip: f32, y: f32, scene: &Scene<S>) -> Ray {
     // Compute two points in clip-space.
     let near_ndc_point = Point3::new(x_clip, y, -1.0);
     let far_ndc_point = Point3::new(x_clip, y, 1.0);
@@ -170,10 +171,19 @@ impl Scene<Compound> {
     // TODO Add proper signature
     pub fn load_shapes_from_pdb(&mut self) {
         // TODO Define a compound from two balls
+        let sphere_1 = SharedShape(Arc::new(Ball::new(10.0)));
+        let sphere_2 = SharedShape(Arc::new(Ball::new(15.0)));
+
+        let t = Isometry3::<f32>::translation(15.0, 0.0, 0.0);
+        let shapes = vec![(Isometry3::<f32>::identity(), sphere_1), (t, sphere_2)];
+
+        let combo = Compound::new(shapes);
+        self.shapes.push((Isometry3::<f32>::identity(), combo));
+        // self.scene_projection.update_for_shapes(&self.shapes);
     }
 }
 
-impl Default for Scene {
+impl<S: RayCast + ValidShape> Default for Scene<S> {
     fn default() -> Self {
         let eye = Point3::new(0.0f32, 0.0f32, -50.0f32);
         let target = Point3::new(0.0f32, 0.0f32, 0.0f32);

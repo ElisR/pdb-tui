@@ -2,6 +2,7 @@
 use crate::{
     rasterizer::Rasterizer,
     scene::{create_ray, Scene},
+    surface::ValidShape,
 };
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
 use parry3d::query::RayCast;
@@ -132,7 +133,7 @@ impl<R: Rasterizer> Canvas<R> {
         }
     }
     /// Update the canvas with the current state of the scene
-    pub fn draw_scene_to_canvas(&mut self, scene: &Scene) {
+    pub fn draw_scene_to_canvas<S: RayCast + ValidShape>(&mut self, scene: &Scene<S>) {
         self.flush_buffers();
         for y in 0..self.height {
             for x in 0..self.width {

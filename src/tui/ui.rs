@@ -3,6 +3,7 @@ use crate::{
     rasterizer::{BasicAsciiRasterizer, Rasterizer},
     render::Canvas,
     scene::Scene,
+    surface::ValidShape,
     tui::{
         popup::Popup,
         state::{App, BenchmarkState, HelpState, RenderState},
@@ -17,6 +18,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+use parry3d::{query::RayCast, shape::Compound};
 // TODO Consider just importing everything from `prelude` and `widgets`
 use ratatui::{
     prelude::{CrosstermBackend, Frame, Rect, Style, Stylize, Terminal},
@@ -111,10 +113,10 @@ pub enum StateWrapper {
 
 // Unhappy with how this requires matching every state arm
 impl StateWrapper {
-    pub fn update<R: Rasterizer>(
+    pub fn update<R: Rasterizer, S: RayCast + ValidShape>(
         mut self,
         canvas: &mut Canvas<R>,
-        scene: &mut Scene,
+        scene: &mut Scene<S>,
         next_action: NextAction,
     ) -> Self {
         match self {
@@ -178,7 +180,12 @@ impl StateWrapper {
         }
     }
 
-    pub fn ui<R: Rasterizer>(&self, canvas: &mut Canvas<R>, scene: &mut Scene, frame: &mut Frame) {
+    pub fn ui<R: Rasterizer, S: RayCast + ValidShape>(
+        &self,
+        canvas: &mut Canvas<R>,
+        scene: &mut Scene<S>,
+        frame: &mut Frame,
+    ) {
         // TODO Once line colour issue is fixed, change this back to be the whole screen
         let area = frame.size();
         let render_area = Rect {
@@ -299,12 +306,18 @@ pub fn run() -> Result<()> {
     terminal.clear()?;
 
     // Load and draw
-    let test_obj = "./data/surface.obj";
+    // let test_obj = "./data/surface.obj";
 
     let mut app = StateWrapper::Rendering(App::<RenderState>::default());
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
-    let mut scene = Scene::default();
-    scene.load_meshes_from_path(test_obj);
+
+    // let mut scene = Scene::default();
+    // scene.load_meshes_from_path(test_obj);
+
+    let mut scene = Scene::<Compound>::default();
+    // scene.load_meshes_from_path(test_obj);
+    scene.load_shapes_from_pdb();
+
     scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);
 
