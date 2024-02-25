@@ -124,7 +124,7 @@ impl StateWrapper {
                     NextAction::Rotate { axis, angle } => {
                         let rotation = UnitQuaternion::from_scaled_axis(axis * angle);
                         let transform = Isometry3::from_parts(Translation3::identity(), rotation);
-                        scene.transform_meshes(&transform);
+                        scene.transform_shapes(&transform);
                         canvas.draw_scene_to_canvas(scene);
                         self
                     }
@@ -310,7 +310,7 @@ pub fn run() -> Result<()> {
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
     let mut scene = Scene::default();
     scene.load_meshes_from_path(test_obj);
-    scene.meshes_to_center();
+    scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);
 
     // TODO Make all of this async

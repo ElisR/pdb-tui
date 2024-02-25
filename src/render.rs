@@ -2,13 +2,13 @@
 use crate::{
     rasterizer::Rasterizer,
     read::get_meshes_from_obj,
-    surface::{HasCenter, ToTriMesh},
+    surface::{ToTriMesh, ValidShape},
 };
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
 use nalgebra::{Isometry3, Perspective3, Point3, Vector3};
 use parry3d::{
     query::{Ray, RayCast},
-    shape::TriMesh,
+    shape::{Compound, TriMesh},
 };
 use std::path::Path;
 
@@ -95,20 +95,22 @@ impl Default for SceneProjection {
 /// Holds camera position relative to world coordinates
 /// Also holds list of all the light sources
 // TODO Implement debug for this manually
-pub struct Scene {
+// TODO Make generic according to different types of shape
+pub struct Scene<S: RayCast = TriMesh> {
     pub view: Isometry3<f32>,
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
-    meshes: Vec<TriMesh>,
+    shapes: Vec<S>,
 }
-impl Scene {
+
+impl<S: RayCast + ValidShape> Scene<S> {
     fn new(
         eye: &Point3<f32>,
         target: &Point3<f32>,
         up: &Vector3<f32>,
         lights: &[Vector3<f32>],
         scene_projection: SceneProjection,
-        meshes: Vec<TriMesh>,
+        shapes: Vec<S>,
     ) -> Self {
         let view = Isometry3::face_towards(eye, target, up);
         let lights = lights.to_owned();
@@ -116,7 +118,7 @@ impl Scene {
             view,
             lights,
             scene_projection,
-            meshes,
+            shapes,
         }
     }
     /// Change the scene projection according to new width and height of canvas
@@ -127,28 +129,18 @@ impl Scene {
             .perspective
             .set_aspect(adjusted_aspect_ratio);
     }
-    /// Adds meshes found at path to existing meshes vector
-    pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
-        let tobj_meshes = get_meshes_from_obj(path);
-        let mut new_meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
-        self.meshes.append(&mut new_meshes);
-        self.scene_projection.update_for_meshes(&self.meshes);
-    }
-    /// Transform meshes according to tranformation
-    pub fn transform_meshes(&mut self, transform: &Isometry3<f32>) {
-        for mesh in self.meshes.iter_mut() {
-            mesh.transform_vertices(transform);
-        }
-    }
-    /// Make the mesh be at the center of the view
-    pub fn meshes_to_center(&mut self) {
-        let com = self.meshes.get_com();
-        let transform = Isometry3::translation(-com.x, -com.y, -com.z);
-        self.transform_meshes(&transform);
-    }
     /// Change the view according to transformation
     pub fn transform_view(&mut self, transform: &Isometry3<f32>) {
         self.view = transform * self.view;
+    }
+    pub fn transform_shapes(&mut self, transform: &Isometry3<f32>) {
+        self.shapes.transform(transform);
+    }
+    /// Make the mesh be at the center of the view
+    pub fn shapes_to_center(&mut self) {
+        let com = self.shapes.get_com();
+        let transform = Isometry3::translation(-com.x, -com.y, -com.z);
+        self.transform_shapes(&transform);
     }
     /// Resetting the view to point at the center-of-mass of the meshes
     // TODO Write this function
@@ -156,6 +148,24 @@ impl Scene {
         todo!();
     }
 }
+
+impl Scene<TriMesh> {
+    /// Adds meshes found at path to existing meshes vector
+    pub fn load_meshes_from_path<Q: AsRef<Path>>(&mut self, path: Q) {
+        let tobj_meshes = get_meshes_from_obj(path);
+        let mut new_meshes = tobj_meshes.iter().map(|m| m.to_tri_mesh()).collect();
+        self.shapes.append(&mut new_meshes);
+        self.scene_projection.update_for_meshes(&self.shapes);
+    }
+}
+
+impl Scene<Compound> {
+    // TODO Add proper signature
+    pub fn load_shapes_from_pdb(&mut self) {
+        // TODO Define a compound from two balls
+    }
+}
+
 impl Default for Scene {
     fn default() -> Self {
         let eye = Point3::new(0.0f32, 0.0f32, -50.0f32);
@@ -166,8 +176,8 @@ impl Default for Scene {
             // Vector3::new(0.0f32, -1.0f32, -1.0f32),
         ];
         let scene_projection = SceneProjection::default();
-        let meshes = vec![];
-        Self::new(&eye, &target, &up, &lights, scene_projection, meshes)
+        let shapes = vec![];
+        Self::new(&eye, &target, &up, &lights, scene_projection, shapes)
     }
 }
 
@@ -300,7 +310,8 @@ impl<R: Rasterizer> Canvas<R> {
                 let x_clip = pixel_to_clip(x, self.width);
                 let y_clip = pixel_to_clip(y, self.height);
                 let ray = create_ray(x_clip, y_clip, scene);
-                for mesh in scene.meshes.iter() {
+                // FIXME make sure this works when using something other than meshes
+                for mesh in scene.shapes.iter() {
                     // FIXME Make sure max_toi is reasonable
                     let toi_result = mesh.cast_local_ray_and_get_normal(
                         &ray,
