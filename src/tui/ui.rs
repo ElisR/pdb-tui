@@ -26,11 +26,11 @@ use ratatui::{
 use std::io::{stdout, Result};
 use std::time::Instant;
 
-/// Enum holding the possible things that will happen after an action
+/// The possible things that will happen after an action
 pub enum NextAction {
-    Quit,
     Translate { x: f32, y: f32, z: f32 },
     Rotate { axis: Vector3<f32>, angle: f32 },
+    Quit,
     Save,
     Nothing,
     Help,
@@ -102,8 +102,6 @@ fn next_action_from_key(key: KeyEvent) -> NextAction {
     }
 }
 
-// TODO Move all this state marker stuff to another module
-
 pub enum StateWrapper {
     Rendering(App<RenderState>),
     Helping(App<HelpState>),
@@ -130,7 +128,6 @@ impl StateWrapper {
                     }
                     NextAction::Translate { x, y, z } => {
                         let transform = Isometry3::translation(x, y, z);
-                        // scene.transform_meshes(&transform);
                         scene.transform_view(&transform);
                         canvas.draw_scene_to_canvas(scene);
                         self
@@ -146,10 +143,7 @@ impl StateWrapper {
                         app.should_quit = true;
                         self
                     }
-                    NextAction::Help => {
-                        // TODO Actually do something when help key is pressed
-                        StateWrapper::Helping(App::<HelpState>::from(*app))
-                    }
+                    NextAction::Help => StateWrapper::Helping(App::<HelpState>::from(*app)),
                     NextAction::Benchmark => {
                         StateWrapper::Benchmarking(App::<BenchmarkState>::from(*app))
                     }
