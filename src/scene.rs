@@ -1,15 +1,14 @@
 // #![allow(dead_code)]
 use crate::{
-    read::get_meshes_from_obj,
+    read::{get_meshes_from_obj, get_shapes_from_pdb},
     surface::{ToTriMesh, ValidShape},
 };
 use nalgebra::{Isometry3, Perspective3, Point3, Vector3};
 use parry3d::{
     query::{Ray, RayCast},
-    shape::{Ball, Compound, SharedShape, TriMesh},
+    shape::{Compound, TriMesh},
 };
 use std::path::Path;
-use std::sync::Arc;
 
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
 /// Default for FOV in radians
@@ -95,6 +94,7 @@ impl Default for SceneProjection {
 // TODO Make generic according to different types of shape
 pub struct Scene<S: RayCast = TriMesh> {
     pub view: Isometry3<f32>,
+    /// Direction that the lights are pointing (as opposed to location of point source)
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
     shapes: Vec<(Isometry3<f32>, S)>,
@@ -169,16 +169,14 @@ impl Scene<TriMesh> {
 
 impl Scene<Compound> {
     // TODO Add proper signature
-    pub fn load_shapes_from_pdb(&mut self) {
-        // TODO Define a compound from two balls
-        let sphere_1 = SharedShape(Arc::new(Ball::new(10.0)));
-        let sphere_2 = SharedShape(Arc::new(Ball::new(15.0)));
-
-        let t = Isometry3::<f32>::translation(15.0, 0.0, 0.0);
-        let shapes = vec![(Isometry3::<f32>::identity(), sphere_1), (t, sphere_2)];
-
-        let combo = Compound::new(shapes);
-        self.shapes.push((Isometry3::<f32>::identity(), combo));
+    pub fn load_shapes_from_pdb<Q: AsRef<str>>(&mut self, path: Q) {
+        let compounds = get_shapes_from_pdb(path);
+        let mut shapes: Vec<(Isometry3<f32>, Compound)> = compounds
+            .into_iter()
+            .map(|c| (Isometry3::<f32>::identity(), c))
+            .collect();
+        self.shapes.append(&mut shapes);
+        // FIXME Make this work
         // self.scene_projection.update_for_shapes(&self.shapes);
     }
 }
@@ -195,5 +193,28 @@ impl<S: RayCast + ValidShape> Default for Scene<S> {
         let scene_projection = SceneProjection::default();
         let shapes = vec![];
         Self::new(&eye, &target, &up, &lights, scene_projection, shapes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use parry3d::shape::{Ball, SharedShape};
+    use std::sync::Arc;
+
+    #[test]
+    fn create_compound_shape() {
+        let mut scene = Scene::<Compound>::default();
+
+        let sphere_1 = SharedShape(Arc::new(Ball::new(10.0)));
+        let sphere_2 = SharedShape(Arc::new(Ball::new(15.0)));
+
+        let t = Isometry3::<f32>::translation(15.0, 0.0, 0.0);
+        let shapes = vec![(Isometry3::<f32>::identity(), sphere_1), (t, sphere_2)];
+
+        let combo = Compound::new(shapes);
+        scene.shapes.push((Isometry3::<f32>::identity(), combo));
+
+        assert_eq!(scene.shapes.len(), 1)
     }
 }

@@ -307,6 +307,7 @@ pub fn run() -> Result<()> {
 
     // Load and draw
     // let test_obj = "./data/surface.obj";
+    let test_pdb = "./data/rbd.pdb";
 
     let mut app = StateWrapper::Rendering(App::<RenderState>::default());
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
@@ -316,7 +317,7 @@ pub fn run() -> Result<()> {
 
     let mut scene = Scene::<Compound>::default();
     // scene.load_meshes_from_path(test_obj);
-    scene.load_shapes_from_pdb();
+    scene.load_shapes_from_pdb(test_pdb);
 
     scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);
