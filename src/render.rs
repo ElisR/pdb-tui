@@ -90,6 +90,7 @@ impl<R: Rasterizer> Canvas<R> {
         self.pixel_buffer.chunks(self.width).collect()
     }
     /// Utility function for calculating index, given pixel location
+    #[inline]
     fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
         if x < self.width && y < self.width {
@@ -100,6 +101,7 @@ impl<R: Rasterizer> Canvas<R> {
     }
     /// Set a pixel unconditionally
     /// Will do nothing if pixel out of range
+    #[inline]
     pub fn set_pixel(&mut self, x: usize, y: usize, val: f32) {
         if let Ok(idx) = self.pixel_to_index(x, y) {
             self.pixel_buffer[idx] = val;
@@ -108,6 +110,7 @@ impl<R: Rasterizer> Canvas<R> {
     /// Set a pixel conditional on time-of-impact being lower than current buffer value
     /// Also updates time-of-impact buffer
     /// Will do nothing if pixel out of range
+    #[inline]
     pub fn set_pixel_toi(&mut self, x: usize, y: usize, val: f32, toi: f32) {
         if let Ok(idx) = self.pixel_to_index(x, y) {
             if toi < self.toi_buffer[idx] {
@@ -118,6 +121,7 @@ impl<R: Rasterizer> Canvas<R> {
     }
     /// Update time-of-impact buffer
     /// Will do nothing if pixel out of range
+    #[inline]
     pub fn set_toi(&mut self, x: usize, y: usize, toi: f32) {
         if let Ok(idx) = self.pixel_to_index(x, y) {
             self.toi_buffer[idx] = toi;
