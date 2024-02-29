@@ -301,23 +301,20 @@ pub fn startup() -> Result<()> {
     Ok(())
 }
 
-pub fn run() -> Result<()> {
+pub fn run<Q: AsRef<str>>(pdb_file: Q) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    // Load and draw
-    // let test_obj = "./data/surface.obj";
-    let test_pdb = "./data/rbd.pdb";
-
     let mut app = StateWrapper::Rendering(App::<RenderState>::default());
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
+
+    // TODO Decide on format depending on filetype
 
     // let mut scene = Scene::default();
     // scene.load_meshes_from_path(test_obj);
 
     let mut scene = Scene::<Compound>::default();
-    // scene.load_meshes_from_path(test_obj);
-    scene.load_shapes_from_pdb(test_pdb);
+    scene.load_shapes_from_pdb(pdb_file);
 
     scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);
