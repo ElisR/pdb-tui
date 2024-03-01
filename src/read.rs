@@ -1,5 +1,6 @@
 use nalgebra::Isometry3;
 use parry3d::shape::{Ball, Compound, SharedShape};
+use pdbtbx::Element;
 use pdbtbx::{open_pdb, Atom, StrictnessLevel};
 use std::path::Path;
 use std::sync::Arc;
@@ -35,7 +36,13 @@ pub fn get_compound_from_atoms(atoms: &[&Atom]) -> Compound {
     let mut balls = vec![];
 
     for atom in atoms.iter() {
-        let sphere = SharedShape(Arc::new(Ball::new(CARBON_RADIUS)));
+        let sphere = SharedShape(Arc::new(Ball::new(
+            atom.element()
+                .unwrap_or(&Element::C)
+                .atomic_radius()
+                .van_der_waals
+                .unwrap() as f32,
+        )));
         let t = Isometry3::translation(atom.x() as f32, atom.y() as f32, atom.z() as f32);
 
         balls.push((t, sphere));
@@ -55,6 +62,7 @@ where
     let bb_atoms: Vec<Vec<&Atom>> = pdb
         .chains()
         .map(|c| c.atoms().filter(|a| a.is_backbone()).collect())
+        // .map(|c| c.atoms().collect())
         .collect();
     bb_atoms
         .iter()
