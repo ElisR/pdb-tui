@@ -8,14 +8,14 @@ use std::io::Result;
 #[command(version, about, long_about = None)]
 struct Args {
     /// PDB file to be loaded
-    #[arg(short, long, default_value_t = String::from("./data/rbd.pdb"))]
-    input: String,
+    #[arg(short, long, num_args=1.., default_value = "./data/rbd.pdb")]
+    inputs: Vec<String>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     startup()?;
-    let result = run(args.input);
+    let result = run(args.inputs);
     shutdown()?;
     result?;
     Ok(())

@@ -301,7 +301,7 @@ pub fn startup() -> Result<()> {
     Ok(())
 }
 
-pub fn run<Q: AsRef<str>>(pdb_file: Q) -> Result<()> {
+pub fn run<Q: AsRef<str>>(pdb_files: Vec<Q>) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
@@ -314,7 +314,9 @@ pub fn run<Q: AsRef<str>>(pdb_file: Q) -> Result<()> {
     // scene.load_meshes_from_path(test_obj);
 
     let mut scene = Scene::<Compound>::default();
-    scene.load_shapes_from_pdb(pdb_file);
+    for path in pdb_files.iter() {
+        scene.load_shapes_from_pdb(path)
+    }
 
     scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);
