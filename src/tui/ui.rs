@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::{
-    rasterizer::{BasicAsciiRasterizer, Rasterizer},
+    rasterizer::{BasicAsciiRasterizer, ColoredChar, Rasterizer},
     render::Canvas,
     scene::Scene,
     surface::ValidShape,
@@ -22,9 +22,8 @@ use parry3d::{query::RayCast, shape::Compound};
 // TODO Consider just importing everything from `prelude` and `widgets`
 use ratatui::{
     prelude::{CrosstermBackend, Frame, Rect, Style, Stylize, Terminal},
-    style::Color,
-    text::{Line, Text},
-    widgets::Paragraph,
+    text::{Line, Span, Text},
+    widgets::{Paragraph, Widget},
 };
 use std::io::{stdout, Result};
 use std::time::Instant;
@@ -202,11 +201,13 @@ impl StateWrapper {
             scene.update_aspect(render_area.width as usize, render_area.height as usize);
             canvas.draw_scene_to_canvas(scene);
         }
-        let out_string: String = canvas.frame_buffer.iter().collect();
-        let widget = Paragraph::new(Text::raw(&out_string)).fg(Color::Blue);
+
+        // FIXME This is currently rendering the entirety even if it's not changing, so probably using a lot of CPU
+        let widget = widget_from_frame_buffer(&canvas.frame_buffer);
         frame.render_widget(widget, render_area);
 
         match self {
+            // TODO Move these functions into implementations of App
             Self::Helping(_) => {
                 let popup_area = Rect {
                     x: area.width / 3,
@@ -287,6 +288,20 @@ impl StateWrapper {
     }
 }
 
+/// Returns a widget which correctly colours each pixel individually
+pub fn widget_from_frame_buffer(frame_buffer: &[ColoredChar]) -> impl Widget {
+    let lines: Vec<Line> = frame_buffer
+        .split(|cc| cc.symbol == '\n')
+        .map(|line| {
+            Line::default().spans(
+                line.iter()
+                    .map(|cc| Span::styled(cc.symbol.to_string(), Style::default().fg(cc.color))),
+            )
+        })
+        .collect();
+    Paragraph::new(lines)
+}
+
 /// Perform shutdown of terminal
 pub fn shutdown() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
@@ -317,6 +332,7 @@ pub fn run<Q: AsRef<str>>(pdb_files: Vec<Q>) -> Result<()> {
     for path in pdb_files.iter() {
         scene.load_shapes_from_pdb(path)
     }
+    scene.recolor();
 
     scene.shapes_to_center();
     canvas.draw_scene_to_canvas(&scene);

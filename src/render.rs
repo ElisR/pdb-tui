@@ -1,11 +1,12 @@
 // #![allow(dead_code)]
 use crate::{
-    rasterizer::Rasterizer,
+    rasterizer::{ColoredChar, ColoredPixel, Rasterizer},
     scene::{create_ray, Scene},
     surface::ValidShape,
 };
 use image::{imageops::flip_vertical_in_place, GrayImage, ImageResult};
 use parry3d::query::RayCast;
+use ratatui::style::Color;
 use std::path::Path;
 
 const SCREEN_PIXELS_X: usize = 320;
@@ -17,22 +18,26 @@ pub enum CanvasError {
 
 #[derive(Debug)]
 pub struct Canvas<R: Rasterizer> {
-    pub frame_buffer: Vec<char>,
+    pub frame_buffer: Vec<ColoredChar>,
     // TODO Consider changing pixel buffer to 2D array for more convenience
-    pub pixel_buffer: Vec<f32>,
+    // TODO Consider changing to Vec<(f32, Color)>
+    pub pixel_buffer: Vec<ColoredPixel>,
     pub toi_buffer: Vec<f32>,
     width: usize,
     height: usize,
     pub rasterizer: R,
     /// Pixel intensity used for the background
-    pub bg_pixel: f32,
+    pub bg_pixel: ColoredPixel,
 }
 impl<R: Rasterizer> Canvas<R> {
     /// Constructor for canvas.
     /// Depending on the rasterizer, the canvas may contain more pixels than passed to the constructor.
     /// This is because the rasterizer may perform some downsampling to produce a string.
     pub fn new(render_width: usize, render_height: usize, rasterizer: R) -> Self {
-        let bg_pixel = 1.1f32;
+        let bg_pixel = ColoredPixel {
+            intensity: 1.1f32,
+            color: Color::Reset,
+        };
 
         // Recalculate height and width depending on rasterizer
         let grid_size = rasterizer.grid_size();
@@ -86,7 +91,7 @@ impl<R: Rasterizer> Canvas<R> {
         self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
     }
     /// Reshape the vector of pixels to a 2D vector that can be accepted by `Rasterizer`
-    fn reshaped_pixels(&self) -> Vec<&[f32]> {
+    fn reshaped_pixels(&self) -> Vec<&[ColoredPixel]> {
         self.pixel_buffer.chunks(self.width).collect()
     }
     /// Utility function for calculating index, given pixel location
@@ -102,19 +107,19 @@ impl<R: Rasterizer> Canvas<R> {
     /// Set a pixel unconditionally
     /// Will do nothing if pixel out of range
     #[inline]
-    pub fn set_pixel(&mut self, x: usize, y: usize, val: f32) {
+    pub fn set_pixel(&mut self, x: usize, y: usize, colored_pixel: ColoredPixel) {
         if let Ok(idx) = self.pixel_to_index(x, y) {
-            self.pixel_buffer[idx] = val;
+            self.pixel_buffer[idx] = colored_pixel;
         }
     }
     /// Set a pixel conditional on time-of-impact being lower than current buffer value
     /// Also updates time-of-impact buffer
     /// Will do nothing if pixel out of range
     #[inline]
-    pub fn set_pixel_toi(&mut self, x: usize, y: usize, val: f32, toi: f32) {
+    pub fn set_pixel_toi(&mut self, x: usize, y: usize, colored_pixel: ColoredPixel, toi: f32) {
         if let Ok(idx) = self.pixel_to_index(x, y) {
             if toi < self.toi_buffer[idx] {
-                self.pixel_buffer[idx] = val;
+                self.pixel_buffer[idx] = colored_pixel;
                 self.toi_buffer[idx] = toi;
             }
         }
@@ -145,10 +150,10 @@ impl<R: Rasterizer> Canvas<R> {
                 let y_clip = pixel_to_clip(y, self.height);
                 let ray = create_ray(x_clip, y_clip, scene);
                 // FIXME make sure this works when using something other than meshes
-                for (transform, shape) in scene.shapes().iter() {
+                for colored_shape in scene.shapes().iter() {
                     // FIXME Make sure max_toi is reasonable
-                    let toi_result = shape.cast_ray_and_get_normal(
-                        transform,
+                    let toi_result = colored_shape.shape.cast_ray_and_get_normal(
+                        &colored_shape.world_transform,
                         &ray,
                         scene.scene_projection.perspective.zfar() + 100.0,
                         true,
@@ -161,7 +166,15 @@ impl<R: Rasterizer> Canvas<R> {
                             .lights
                             .iter()
                             .fold(0.0, |i, l| i + normal.dot(l).max(0.0));
-                        self.set_pixel_toi(x, y, intensity, ri.toi);
+                        self.set_pixel_toi(
+                            x,
+                            y,
+                            ColoredPixel {
+                                intensity,
+                                color: colored_shape.color,
+                            },
+                            ri.toi,
+                        );
                     }
                 }
             }
@@ -173,11 +186,7 @@ impl<R: Rasterizer> Canvas<R> {
     where
         Q: AsRef<Path>,
     {
-        let pixels_transformed = self
-            .pixel_buffer
-            .iter()
-            .map(|i| (i * 255.0).round() as u8)
-            .collect();
+        let pixels_transformed = self.pixel_buffer.iter().map(|p| p.to_grayscale()).collect();
         let mut image_buffer =
             GrayImage::from_raw(self.width as u32, self.height as u32, pixels_transformed).unwrap();
         // Flip because small coord means small index, but top of image should have large y
@@ -195,8 +204,7 @@ impl<R: Rasterizer + Default> Default for Canvas<R> {
 
 /// Convert from clip space to pixel space
 /// Will return values outside of range `0..pixels` if value is outside range `-1.0..1.0`
-/// TODO Check for weird behaviour if output is below range of u16
-/// NOTE Might want to use `i32` instead
+/// TODO Check for weird behaviour if output is below range of `usize`
 #[allow(dead_code)]
 fn clip_to_pixel(clip_coord: f32, num_pixels: usize) -> usize {
     let pixel_width = 2.0 / num_pixels as f32;

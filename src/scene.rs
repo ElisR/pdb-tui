@@ -4,10 +4,12 @@ use crate::{
     surface::{ToTriMesh, ValidShape},
 };
 use nalgebra::{Isometry3, Perspective3, Point3, Vector3};
+use parry3d::mass_properties::MassProperties;
 use parry3d::{
     query::{Ray, RayCast},
     shape::{Compound, TriMesh},
 };
+use ratatui::style::Color;
 use std::path::Path;
 
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
@@ -65,16 +67,16 @@ impl SceneProjection {
     /// Create new projection that fits meshes into `znear` and `zfar`
     /// Will resort to default `znear` and `zfar` if slice of meshes is empty
     // FIXME Update for new shapes defined in scene
-    pub fn update_for_shapes(&mut self, shapes: &[(Isometry3<f32>, TriMesh)]) {
+    pub fn update_for_shapes(&mut self, shapes: &[ColoredShape<TriMesh>]) {
         // FIXME Have this not be tied to orientation, maybe by using sphere
         let znear = shapes
             .iter()
-            .map(|(t, m)| m.aabb(t).mins.z)
+            .map(|cs| cs.shape.aabb(&cs.world_transform).mins.z)
             .reduce(f32::min)
             .unwrap_or(ZNEAR_DEFAULT);
         let zfar = shapes
             .iter()
-            .map(|(t, m)| m.aabb(t).maxs.z)
+            .map(|cs| cs.shape.aabb(&cs.world_transform).maxs.z)
             .reduce(f32::max)
             .unwrap_or(ZFAR_DEFAULT);
         self.perspective.set_znear_and_zfar(znear, zfar);
@@ -86,18 +88,46 @@ impl Default for SceneProjection {
     }
 }
 
+pub struct ColoredShape<S> {
+    pub shape: S,
+    pub world_transform: Isometry3<f32>,
+    pub color: Color,
+}
+
+impl<S> ColoredShape<S> {
+    fn set_color(&mut self, color: Color) {
+        self.color = color;
+    }
+}
+
+// TODO Add a hierarchy of shapes
+
+/// Calculate center of many shapes
+/// Returns the origin if vector is empty
+/// TODO Change to act on slice
+impl<S: ValidShape> ValidShape for Vec<ColoredShape<S>> {
+    fn mass_properties_default(&self) -> Option<MassProperties> {
+        self.iter()
+            .filter_map(|cs| {
+                cs.shape
+                    .mass_properties_default()
+                    .map(|mp| mp.transform_by(&cs.world_transform))
+            })
+            .reduce(|sum_m, m| sum_m + m)
+    }
+}
+
 /// Holding geometric objects related to rendering
 ///
 /// Holds camera position relative to world coordinates
 /// Also holds list of all the light sources
 // TODO Implement debug for this manually
-// TODO Make generic according to different types of shape
-pub struct Scene<S: RayCast = TriMesh> {
+pub struct Scene<S: RayCast + ValidShape = TriMesh> {
     pub view: Isometry3<f32>,
     /// Direction that the lights are pointing (as opposed to location of point source)
     pub lights: Vec<Vector3<f32>>,
     pub scene_projection: SceneProjection,
-    shapes: Vec<(Isometry3<f32>, S)>,
+    shapes: Vec<ColoredShape<S>>,
 }
 
 impl<S: RayCast + ValidShape> Scene<S> {
@@ -107,7 +137,7 @@ impl<S: RayCast + ValidShape> Scene<S> {
         up: &Vector3<f32>,
         lights: &[Vector3<f32>],
         scene_projection: SceneProjection,
-        shapes: Vec<(Isometry3<f32>, S)>,
+        shapes: Vec<ColoredShape<S>>,
     ) -> Self {
         let view = Isometry3::face_towards(eye, target, up);
         let lights = lights.to_owned();
@@ -118,7 +148,7 @@ impl<S: RayCast + ValidShape> Scene<S> {
             shapes,
         }
     }
-    pub fn shapes(&self) -> &[(Isometry3<f32>, S)] {
+    pub fn shapes(&self) -> &[ColoredShape<S>] {
         &self.shapes[..]
     }
     /// Change the scene projection according to new width and height of canvas
@@ -136,8 +166,8 @@ impl<S: RayCast + ValidShape> Scene<S> {
     /// Transform shapes by a transformation
     /// Internally, prepends trasnformation to existing internal transformation
     pub fn transform_shapes(&mut self, transform: &Isometry3<f32>) {
-        for (og_transform, _) in self.shapes.iter_mut() {
-            *og_transform = transform * *og_transform;
+        for cs in self.shapes.iter_mut() {
+            cs.world_transform = transform * cs.world_transform;
         }
     }
     /// Make the mesh be at the center of the view
@@ -151,6 +181,21 @@ impl<S: RayCast + ValidShape> Scene<S> {
     pub fn reset_eye_to_com(&mut self) {
         todo!();
     }
+    /// Recolor the shapes in a way that maximises visilbity
+    pub fn recolor(&mut self) {
+        let ordering = [
+            Color::Black,
+            Color::Red,
+            Color::Green,
+            Color::Yellow,
+            Color::Blue,
+            Color::Magenta,
+            Color::Cyan,
+        ];
+        for (i, shape) in self.shapes.iter_mut().enumerate() {
+            shape.set_color(ordering[i % ordering.len()])
+        }
+    }
 }
 
 impl Scene<TriMesh> {
@@ -160,7 +205,11 @@ impl Scene<TriMesh> {
         let mut new_meshes = tobj_meshes
             .iter()
             .map(|m| m.to_tri_mesh())
-            .map(|m| (Isometry3::identity(), m))
+            .map(|m| ColoredShape {
+                shape: m,
+                world_transform: Isometry3::identity(),
+                color: Color::Black,
+            })
             .collect();
         self.shapes.append(&mut new_meshes);
         self.scene_projection.update_for_shapes(&self.shapes);
@@ -171,9 +220,13 @@ impl Scene<Compound> {
     // TODO Add proper signature
     pub fn load_shapes_from_pdb<Q: AsRef<str>>(&mut self, path: Q) {
         let compounds = get_shapes_from_pdb(path);
-        let mut shapes: Vec<(Isometry3<f32>, Compound)> = compounds
+        let mut shapes = compounds
             .into_iter()
-            .map(|c| (Isometry3::<f32>::identity(), c))
+            .map(|c| ColoredShape {
+                shape: c,
+                world_transform: Isometry3::<f32>::identity(),
+                color: Color::Black,
+            })
             .collect();
         self.shapes.append(&mut shapes);
         // FIXME Make this work
@@ -213,7 +266,11 @@ mod tests {
         let shapes = vec![(Isometry3::<f32>::identity(), sphere_1), (t, sphere_2)];
 
         let combo = Compound::new(shapes);
-        scene.shapes.push((Isometry3::<f32>::identity(), combo));
+        scene.shapes.push(ColoredShape {
+            world_transform: Isometry3::<f32>::identity(),
+            shape: combo,
+            color: Color::Black,
+        });
 
         assert_eq!(scene.shapes.len(), 1)
     }

@@ -1,6 +1,6 @@
-use nalgebra::{Isometry3, Point3};
+use nalgebra::Point3;
 use parry3d::mass_properties::MassProperties;
-use parry3d::shape::{Compound, Shape, TriMesh};
+use parry3d::shape::{Ball, Compound, Shape, TriMesh};
 use tobj::Mesh;
 
 const DEFAULT_DENSITY: f32 = 1.0;
@@ -44,14 +44,9 @@ impl ValidShape for Compound {
     }
 }
 
-/// Calculate center of many shapes
-/// Returns the origin if vector is empty
-/// TODO Change to act on slice
-impl<S: ValidShape> ValidShape for Vec<(Isometry3<f32>, S)> {
+impl ValidShape for Ball {
     fn mass_properties_default(&self) -> Option<MassProperties> {
-        self.iter()
-            .filter_map(|(t, s)| s.mass_properties_default().map(|mp| mp.transform_by(t)))
-            .reduce(|sum_m, m| sum_m + m)
+        Some(self.mass_properties(DEFAULT_DENSITY))
     }
 }
 
