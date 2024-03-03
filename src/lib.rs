@@ -4,3 +4,6 @@ pub mod render;
 pub mod scene;
 pub mod surface;
 pub mod tui;
+
+/// Module for learning ASCII rendering
+pub mod ascii;

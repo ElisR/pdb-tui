@@ -1,7 +1,10 @@
 #![allow(dead_code)]
+use ab_glyph::InvalidFont;
 use clap::Parser;
-use pdb_tui::tui::ui::{run, shutdown, startup};
-use std::io::Result;
+// use pdb_tui::tui::ui::{run, shutdown, startup};
+// use std::io::Result;
+
+use pdb_tui::ascii::rasterize::draw_char;
 
 /// Program to render PDBs within a terminal user interface
 #[derive(Parser, Debug)]
@@ -12,11 +15,14 @@ struct Args {
     inputs: Vec<String>,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    startup()?;
-    let result = run(args.inputs);
-    shutdown()?;
-    result?;
+fn main() -> Result<(), InvalidFont> {
+    // let args = Args::parse();
+    // startup()?;
+    // let result = run(args.inputs);
+    // shutdown()?;
+    // result?;
+    // Ok(())
+
+    draw_char()?;
     Ok(())
 }
