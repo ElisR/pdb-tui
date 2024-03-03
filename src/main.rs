@@ -4,7 +4,7 @@ use clap::Parser;
 // use pdb_tui::tui::ui::{run, shutdown, startup};
 // use std::io::Result;
 
-use pdb_tui::ascii::rasterize::draw_char;
+use pdb_tui::ascii::rasterize::draw_chars;
 
 /// Program to render PDBs within a terminal user interface
 #[derive(Parser, Debug)]
@@ -23,6 +23,6 @@ fn main() -> Result<(), InvalidFont> {
     // result?;
     // Ok(())
 
-    draw_char()?;
+    draw_chars()?;
     Ok(())
 }
