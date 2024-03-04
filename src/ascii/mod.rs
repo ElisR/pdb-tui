@@ -1,1 +1,2 @@
-pub mod rasterize;
+pub mod glyph_render;
+pub mod ssim;

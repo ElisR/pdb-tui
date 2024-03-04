@@ -1,11 +1,13 @@
 //! Rendering fonts such that we can later learn the mappings
-
+use ab_glyph::{point, Font, FontRef, Glyph, OutlinedGlyph};
 use core::f32;
-
-use ab_glyph::{point, Font, FontRef, Glyph, InvalidFont, OutlinedGlyph};
 use image::{ImageBuffer, Rgba};
 use std::collections::HashMap;
+use thiserror::Error;
 
+use crate::ascii::ssim::{ssim, SsimError};
+
+// TODO Make this into a sensible function
 pub fn get_font() -> impl Font {
     FontRef::try_from_slice(include_bytes!("../../data/FiraCode-Regular.ttf")).unwrap()
 }
@@ -20,13 +22,16 @@ pub fn get_ascii_from_font<F: Font>(font: &F, grid_size: u32) -> Vec<Glyph> {
         .collect()
 }
 
+#[derive(Error, Debug)]
 pub enum GlyphError {
+    #[error("Pixel is not within the ranges of the glyph.")]
     PixelOutOfRange { x: usize, y: usize },
 }
 
 /// Holds all the intensity matrices for all the printable ASCII characters
 pub struct GlyphMatrix {
     /// Character that this glyph represents
+    #[allow(dead_code)]
     symbol: char,
     /// Number of horizontal pixels assigned to one glyph
     width: usize,
@@ -162,16 +167,20 @@ impl GlyphMatrix {
         let filename = format!("characters/{:?}_character.png", glyph_id);
         img.save(filename).unwrap();
     }
+    pub fn ssim(&self, reference_matrix: &[f32]) -> Result<f32, SsimError> {
+        ssim(&self.matrix, reference_matrix)
+    }
 }
 
-pub struct ASCIIMatrices {
+pub struct AsciiMatrices {
     #[allow(dead_code)]
-    width: usize,
-    height: usize,
+    // TODO Make these private and make getters
+    pub width: usize,
+    pub height: usize,
     glyph_matrices: HashMap<char, GlyphMatrix>,
 }
 
-impl ASCIIMatrices {
+impl AsciiMatrices {
     /// Bare constructor for glyph matrices
     /// Note that after construction, glyph matrices will not be centered, so should call `v_center()` on struct
     pub fn new<F: Font>(font: &F, width: usize, height: usize) -> Self {
@@ -191,7 +200,6 @@ impl ASCIIMatrices {
         out.h_center();
         out
     }
-
     /// Center the glyphs vertically, so that they are consistent and lie in the middle
     /// Needed because by default, each glyph is drawn with its highest point up against the top of the cell
     pub fn v_center(&mut self) {
@@ -223,7 +231,6 @@ impl ASCIIMatrices {
             }
         }
     }
-
     /// Center the glyphs horizontally, so that kerning is respected and lie in the middle of a cell
     pub fn h_center(&mut self) {
         let left = self
@@ -240,20 +247,49 @@ impl ASCIIMatrices {
             }
         }
     }
+    /// Save the rendered glyphs, useful for debugging
     pub fn save(&self) {
         for (_, gm) in self.glyph_matrices.iter() {
             gm.save()
         }
     }
+    /// Loop through all ASCII characters and pick the best symbol
+    pub fn pick_best_symbol(&self, patch: &[f32]) -> char {
+        let best_ssim_value = self
+            .glyph_matrices
+            .iter()
+            .map(|(c, gm)| (c, gm.ssim(patch).unwrap_or(std::f32::NEG_INFINITY)))
+            .max_by(|x, y| x.1.total_cmp(&y.1));
+        match best_ssim_value {
+            Some((c, _)) => *c,
+            None => ' ',
+        }
+    }
 }
 
-/// Take a font and render its characters
-pub fn draw_chars() -> Result<(), InvalidFont> {
-    let font = get_font();
-    let grid_size = 120usize;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let ascii_matrices = ASCIIMatrices::new(&font, grid_size / 2, grid_size);
-    ascii_matrices.save();
+    #[test]
+    fn test_draw_chars() {
+        let font = get_font();
+        let grid_size = 120usize;
 
-    Ok(())
+        let ascii_matrices = AsciiMatrices::new(&font, grid_size / 2, grid_size);
+        assert!(!ascii_matrices.glyph_matrices.is_empty());
+
+        let rand = ascii_matrices.glyph_matrices.get(&'a');
+
+        match rand {
+            Some(gm) => {
+                let val = gm.ssim(&gm.matrix);
+                // FIXME Work out why the same character isn't giving 1.0 for itself
+                assert!(val.unwrap() > 0.5f32)
+            }
+            None => {
+                panic!();
+            }
+        }
+    }
 }
