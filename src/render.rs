@@ -20,7 +20,6 @@ pub enum CanvasError {
 pub struct Canvas<R: Rasterizer> {
     pub frame_buffer: Vec<ColoredChar>,
     // TODO Consider changing pixel buffer to 2D array for more convenience
-    // TODO Consider changing to Vec<(f32, Color)>
     pub pixel_buffer: Vec<ColoredPixel>,
     pub toi_buffer: Vec<f32>,
     width: usize,
@@ -40,9 +39,8 @@ impl<R: Rasterizer> Canvas<R> {
         };
 
         // Recalculate height and width depending on rasterizer
-        let grid_size = rasterizer.grid_size();
-        let width = grid_size * render_width;
-        let height = grid_size * render_height;
+        let width = rasterizer.grid_width() * render_width;
+        let height = rasterizer.grid_height() * render_height;
 
         let size = width * height;
         let pixel_buffer = vec![bg_pixel; size];
@@ -60,46 +58,76 @@ impl<R: Rasterizer> Canvas<R> {
     }
 }
 impl<R: Rasterizer> Canvas<R> {
-    /// Get the grid size relating the render size to the size of internal objects
-    /// Not the same because rasterizer may perform subsampling
-    pub fn grid_size(&self) -> usize {
-        self.rasterizer.grid_size()
+    /// Get the grid width multiplying the render width to get the width of internal objects
+    /// These are not the same because rasterizer may perform subsampling
+    pub fn grid_width(&self) -> usize {
+        self.rasterizer.grid_width()
+    }
+    /// Get the grid height multiplying the render height to get the height of internal objects
+    /// These are not the same because rasterizer may perform subsampling
+    pub fn grid_height(&self) -> usize {
+        self.rasterizer.grid_height()
     }
     /// Resize the canvas self-consistently
     /// Unfortunately also wipes the canvas
     pub fn resize(&mut self, render_width: usize, render_height: usize) {
-        self.width = self.grid_size() * render_width;
-        self.height = self.grid_size() * render_height;
+        self.width = self.grid_width() * render_width;
+        self.height = self.grid_height() * render_height;
         let size = self.width * self.height;
 
         self.pixel_buffer = vec![self.bg_pixel; size];
         self.toi_buffer = vec![f32::MAX; size];
-        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
+        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.pixels_as_scanlines())
     }
     /// Return width
     /// Width made private by default to discourage resizing without resizing other quantities
     pub fn render_width(&self) -> usize {
-        self.width / self.grid_size()
+        self.width / self.grid_width()
     }
     /// Return height
     /// Height made private by default to discourage resizing without resizing other quantities
     pub fn render_height(&self) -> usize {
-        self.height / self.grid_size()
+        self.height / self.grid_height()
     }
     /// Update the frame buffer with whatever the pixel buffer is set to
     pub fn update_frame(&mut self) {
-        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.reshaped_pixels())
+        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.pixels_as_scanlines())
     }
     /// Reshape the vector of pixels to a 2D vector that can be accepted by `Rasterizer`
-    fn reshaped_pixels(&self) -> Vec<&[ColoredPixel]> {
+    fn pixels_as_scanlines(&self) -> Vec<&[ColoredPixel]> {
         self.pixel_buffer.chunks(self.width).collect()
     }
+    /// Reshape the vector of pixels to
+    fn pixels_as_grid_chunks(&self) {
+        // TODO
+        todo!()
+    }
     /// Utility function for calculating index, given pixel location
-    #[inline]
+    /// `x` here runs from `0..width` i.e. `0..grid_width()*render_width()`.
+    ///
+    /// Here, chunks are grouped like like
+    /// ```
+    /// 0011223344
+    /// 0011223344
+    /// 5566778899
+    /// 5566778899
+    /// ```
     fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
-        if x < self.width && y < self.width {
-            Ok(y * self.width + x)
+        if x < self.width && y < self.height {
+            let x_major = x / self.grid_width();
+            let x_minor = x % self.grid_width();
+
+            let y_major = y / self.grid_height();
+            let y_minor = y % self.grid_height();
+
+            let idx = y_major * self.width * self.grid_height()
+                + y_minor * self.width
+                + x_major * self.grid_width()
+                + x_minor;
+
+            // Original code
+            Ok(idx)
         } else {
             Err(CanvasError::PixelOutOfRange { x, y })
         }
@@ -162,6 +190,7 @@ impl<R: Rasterizer> Canvas<R> {
                     if let Some(ri) = toi_result {
                         let normal = ri.normal;
                         // Taking ReLU of intensity to give darkness if incident on normal pointing in wrong direction
+                        // TODO Consider using `std::clamp` function for more readability
                         let intensity: f32 = scene
                             .lights
                             .iter()
@@ -220,7 +249,7 @@ fn pixel_to_clip(pixel: usize, num_pixels: usize) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::rasterizer::BasicAsciiRasterizer;
+    use crate::basic_rasterizer::BasicAsciiRasterizer;
 
     use super::*;
     use std::path::Path;

@@ -1,3 +1,4 @@
+pub mod basic_rasterizer;
 pub mod rasterizer;
 pub mod read;
 pub mod render;

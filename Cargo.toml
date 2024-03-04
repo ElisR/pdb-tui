@@ -19,3 +19,4 @@ chrono = "0.4.34"
 derive_setters = "0.1.6"
 clap = { version = "4.5.1", features = ["derive"] }
 ab_glyph = "0.2.23"
+thiserror = "1.0.57"

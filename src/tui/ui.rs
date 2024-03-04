@@ -1,6 +1,9 @@
+//! Code for rendering UI elements and reacting to user input.
+
 #![allow(dead_code)]
 use crate::{
-    rasterizer::{BasicAsciiRasterizer, ColoredChar, Rasterizer},
+    basic_rasterizer::BasicAsciiRasterizer,
+    rasterizer::{ColoredChar, Rasterizer},
     render::Canvas,
     scene::Scene,
     surface::ValidShape,
@@ -136,7 +139,10 @@ impl StateWrapper {
                     }
                     NextAction::Save => {
                         let now: DateTime<Local> = Local::now();
-                        let path = format!("canvas_screenshot_{}.png", now.format("%Y%m%d_%H%M%S"));
+                        let path = format!(
+                            "screenshots/canvas_screenshot_{}.png",
+                            now.format("%Y%m%d_%H%M%S")
+                        );
                         // TODO Bubble this up to an error popup if something goes wrong
                         let _ = canvas.save_image(path);
                         self
