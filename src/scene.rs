@@ -1,3 +1,5 @@
+//! Scene describing what is physically happening, independent of how it will later be shown onscreen.
+
 // #![allow(dead_code)]
 use crate::{
     read::{get_meshes_from_obj, get_shapes_from_pdb},
@@ -20,6 +22,7 @@ const ZFAR_DEFAULT: f32 = 100.0;
 
 /// The ratio of height to width of terminal characters.
 /// This depends on the font being used by the terminal emulator
+// TODO This needs to be replaced by something sensitive to the rasterizer
 const CHAR_ASPECT_RATIO: f32 = 2.0;
 
 /// Take a point in 2D projection of clip space and convert to ray in world space
@@ -181,10 +184,10 @@ impl<S: RayCast + ValidShape> Scene<S> {
     pub fn reset_eye_to_com(&mut self) {
         todo!();
     }
-    /// Recolor the shapes in a way that maximises visilbity
+    /// Recolor the shapes in a way that maximises visibility
+    // TODO Change this function to maximise diversity based on relative distances
     pub fn recolor(&mut self) {
         let ordering = [
-            Color::Black,
             Color::Red,
             Color::Green,
             Color::Yellow,
