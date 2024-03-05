@@ -20,3 +20,4 @@ Cargo.lock
 /target
 
 *.png
+data/FiraCode-Regular.ttf
