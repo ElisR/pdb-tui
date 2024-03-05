@@ -62,8 +62,6 @@ pub trait Rasterizer {
         pixels: Vec<&[ColoredPixel]>,
         render_width: usize,
     ) -> Vec<ColoredChar>;
-    /// Get the character used for the background
-    fn bg_char(&self) -> char;
     /// Get the grid-size used for rasterizing
     fn grid_height(&self) -> usize;
     fn grid_width(&self) -> usize;

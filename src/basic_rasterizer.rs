@@ -39,20 +39,20 @@ impl BasicAsciiRasterizer {
             Err(e) => Err(e),
         }
     }
-    fn pixel_to_char(&self, colored_pixel: ColoredPixel) -> ColoredChar {
+    fn pixel_to_char(&self, pixel: ColoredPixel) -> ColoredChar {
         let mut symbol = self.background;
         for (i, (min, max)) in self.ranges.iter().enumerate() {
-            if colored_pixel.intensity > *min && colored_pixel.intensity <= *max {
+            if pixel.intensity > *min && pixel.intensity <= *max {
                 symbol = self.gradient[i];
                 return ColoredChar {
                     symbol,
-                    color: colored_pixel.color,
+                    color: pixel.color,
                 };
             }
         }
         ColoredChar {
             symbol,
-            color: colored_pixel.color,
+            color: pixel.color,
         }
     }
 }
@@ -60,13 +60,9 @@ impl BasicAsciiRasterizer {
 impl Default for BasicAsciiRasterizer {
     fn default() -> Self {
         let gradient = vec!['@', '%', '#', '*', '+', '=', '-', ':', '.'];
+        let thresholds = vec![-0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
         let background = ' ';
-        BasicAsciiRasterizer::new(
-            gradient,
-            vec![-0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            background,
-        )
-        .unwrap()
+        Self::new(gradient, thresholds, background).unwrap()
     }
 }
 
@@ -76,8 +72,7 @@ impl Rasterizer for BasicAsciiRasterizer {
         pixels: Vec<&[ColoredPixel]>,
         render_width: usize,
     ) -> Vec<ColoredChar> {
-        // Add one to account for newline character
-        // let total_chars: usize = pixels.iter().map(|row| row.len() + 1).sum();
+        // Add one per row to account for newline character
         let total_chars = pixels.len() + (pixels.len() / render_width);
         let mut out: Vec<ColoredChar> = Vec::with_capacity(total_chars);
         // Reverse because small coord means small index, but the top of the screen should have large y
@@ -94,9 +89,6 @@ impl Rasterizer for BasicAsciiRasterizer {
             });
         }
         out
-    }
-    fn bg_char(&self) -> char {
-        self.background
     }
     fn grid_height(&self) -> usize {
         1
@@ -126,7 +118,7 @@ mod tests {
         );
         assert_eq!(
             rasterizer.pixel_to_char(ColoredPixel::from(1.15)).symbol,
-            rasterizer.bg_char()
+            rasterizer.background,
         );
     }
 
