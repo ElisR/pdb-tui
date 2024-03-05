@@ -110,7 +110,7 @@ impl GlyphMatrix {
                     self.height,
                 );
                 if let Ok(idx) = idx {
-                    self.matrix[idx] = c;
+                    self.matrix[idx] = 1.0 - c;
                 }
             });
         }
@@ -254,11 +254,11 @@ impl AsciiMatrices {
         }
     }
     /// Loop through all ASCII characters and pick the best symbol
-    pub fn pick_best_symbol(&self, patch: &[f32]) -> char {
+    pub fn pick_best_symbol(&self, chunk: &[f32]) -> char {
         let best_ssim_value = self
             .glyph_matrices
             .iter()
-            .map(|(c, gm)| (c, gm.ssim(patch).unwrap_or(std::f32::NEG_INFINITY)))
+            .map(|(c, gm)| (c, gm.ssim(chunk).unwrap_or(std::f32::NEG_INFINITY)))
             .max_by(|x, y| x.1.total_cmp(&y.1));
         match best_ssim_value {
             Some((c, _)) => *c,

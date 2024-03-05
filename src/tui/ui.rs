@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 use crate::{
     basic_rasterizer::BasicAsciiRasterizer,
+    fancy_rasterizer::FancyAsciiRasterizer,
     rasterizer::{ColoredChar, Rasterizer},
     render::Canvas,
     scene::Scene,
@@ -21,7 +22,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use parry3d::{query::RayCast, shape::Compound};
+use parry3d::{
+    query::RayCast,
+    shape::{Compound, TriMesh},
+};
 // TODO Consider just importing everything from `prelude` and `widgets`
 use ratatui::{
     prelude::{CrosstermBackend, Frame, Rect, Style, Stylize, Terminal},
@@ -29,6 +33,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 use std::io::{stdout, Result};
+use std::path::Path;
 use std::time::Instant;
 
 /// The possible things that will happen after an action
@@ -327,16 +332,18 @@ pub fn run<Q: AsRef<str>>(pdb_files: Vec<Q>) -> Result<()> {
     terminal.clear()?;
 
     let mut app = StateWrapper::Rendering(App::<RenderState>::default());
+    // let mut canvas = Canvas::<FancyAsciiRasterizer>::default();
     let mut canvas = Canvas::<BasicAsciiRasterizer>::default();
 
     // TODO Decide on format depending on filetype
 
-    // let mut scene = Scene::default();
+    let mut scene = Scene::<TriMesh>::default();
     // scene.load_meshes_from_path(test_obj);
 
-    let mut scene = Scene::<Compound>::default();
+    // let mut scene = Scene::<Compound>::default();
     for path in pdb_files.iter() {
-        scene.load_shapes_from_pdb(path)
+        // scene.load_shapes_from_pdb(path)
+        scene.load_meshes_from_path("./data/surface.obj");
     }
     scene.recolor();
 
