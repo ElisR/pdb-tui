@@ -45,8 +45,8 @@ impl<R: Rasterizer> Canvas<R> {
         let size = width * height;
         let pixel_buffer = vec![bg_pixel; size];
         let toi_buffer = vec![f32::MAX; size];
-        let frame_buffer = rasterizer.pixels_to_stdout(pixel_buffer.chunks(width).collect());
-        Canvas {
+        let frame_buffer = vec![];
+        let mut out = Canvas {
             frame_buffer,
             pixel_buffer,
             toi_buffer,
@@ -54,7 +54,9 @@ impl<R: Rasterizer> Canvas<R> {
             height,
             rasterizer,
             bg_pixel,
-        }
+        };
+        out.update_frame();
+        out
     }
 }
 impl<R: Rasterizer> Canvas<R> {
@@ -77,7 +79,9 @@ impl<R: Rasterizer> Canvas<R> {
 
         self.pixel_buffer = vec![self.bg_pixel; size];
         self.toi_buffer = vec![f32::MAX; size];
-        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.pixels_as_scanlines())
+        self.frame_buffer = self
+            .rasterizer
+            .pixels_to_stdout(self.pixels_as_chunks(), self.render_width())
     }
     /// Return width
     /// Width made private by default to discourage resizing without resizing other quantities
@@ -91,16 +95,15 @@ impl<R: Rasterizer> Canvas<R> {
     }
     /// Update the frame buffer with whatever the pixel buffer is set to
     pub fn update_frame(&mut self) {
-        self.frame_buffer = self.rasterizer.pixels_to_stdout(self.pixels_as_scanlines())
+        self.frame_buffer = self
+            .rasterizer
+            .pixels_to_stdout(self.pixels_as_chunks(), self.render_width())
     }
     /// Reshape the vector of pixels to a 2D vector that can be accepted by `Rasterizer`
-    fn pixels_as_scanlines(&self) -> Vec<&[ColoredPixel]> {
-        self.pixel_buffer.chunks(self.width).collect()
-    }
-    /// Reshape the vector of pixels to
-    fn pixels_as_grid_chunks(&self) {
-        // TODO
-        todo!()
+    fn pixels_as_chunks(&self) -> Vec<&[ColoredPixel]> {
+        self.pixel_buffer
+            .chunks(self.grid_height() * self.grid_width())
+            .collect()
     }
     /// Utility function for calculating index, given pixel location
     /// `x` here runs from `0..width` i.e. `0..grid_width()*render_width()`.

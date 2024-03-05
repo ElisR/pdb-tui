@@ -57,7 +57,11 @@ pub enum RasterizerError {
 
 pub trait Rasterizer {
     // Convert a vector of slices of pixels to a vector of characters to be printed to the terminal
-    fn pixels_to_stdout(&self, pixels: Vec<&[ColoredPixel]>) -> Vec<ColoredChar>;
+    fn pixels_to_stdout(
+        &self,
+        pixels: Vec<&[ColoredPixel]>,
+        render_width: usize,
+    ) -> Vec<ColoredChar>;
     /// Get the character used for the background
     fn bg_char(&self) -> char;
     /// Get the grid-size used for rasterizing

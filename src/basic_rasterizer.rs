@@ -71,16 +71,23 @@ impl Default for BasicAsciiRasterizer {
 }
 
 impl Rasterizer for BasicAsciiRasterizer {
-    fn pixels_to_stdout(&self, pixels: Vec<&[ColoredPixel]>) -> Vec<ColoredChar> {
+    fn pixels_to_stdout(
+        &self,
+        pixels: Vec<&[ColoredPixel]>,
+        render_width: usize,
+    ) -> Vec<ColoredChar> {
         // Add one to account for newline character
-        let total_chars: usize = pixels.iter().map(|row| row.len() + 1).sum();
+        // let total_chars: usize = pixels.iter().map(|row| row.len() + 1).sum();
+        let total_chars = pixels.len() + (pixels.len() / render_width);
         let mut out: Vec<ColoredChar> = Vec::with_capacity(total_chars);
         // Reverse because small coord means small index, but the top of the screen should have large y
-        for row in pixels.iter().rev() {
-            for pixel in row.iter() {
-                let ascii = self.pixel_to_char(*pixel);
+        for row in pixels.chunks(render_width).rev() {
+            for chunk in row.iter() {
+                let pixel = chunk[0];
+                let ascii = self.pixel_to_char(pixel);
                 out.push(ascii);
             }
+            // This works because the grid height is 1
             out.push(ColoredChar {
                 symbol: '\n',
                 color: Color::Reset,
