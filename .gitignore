@@ -19,5 +19,9 @@ Cargo.lock
 # Added by cargo
 /target
 
+# Data
 *.png
 data/FiraCode-Regular.ttf
+
+# WGPU Tutorials
+# src/gpu/tutorial*

@@ -20,3 +20,17 @@ derive_setters = "0.1.6"
 clap = { version = "4.5.1", features = ["derive"] }
 ab_glyph = "0.2.23"
 thiserror = "1.0.57"
+
+# WGPU Tutorial
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0"
+env_logger = "0.10" # TODO Swap this out for tracing everywhere
+pollster = "0.3"  # TODO Swap this out for tokio
+winit = "0.28"
+wgpu = "0.18"
+bytemuck = { version = "1.12", features = [ "derive" ] }
+cgmath = "0.18" # TODO Remove this and never refer to it in actual code
+[[bin]]
+name = "mine"
+path = "src/gpu/mine/main.rs"
