@@ -9,3 +9,6 @@ pub mod tui;
 
 /// Module for learning ASCII rendering
 pub mod ascii;
+
+/// Module temporarily holding code for `wgpu` learning
+pub mod gpu;
