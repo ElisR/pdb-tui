@@ -8,7 +8,7 @@ use std::io::Result;
 #[command(version, about, long_about = None)]
 struct Args {
     /// PDB file to be loaded
-    #[arg(short, long, num_args=1.., default_value = "./data/rbd.pdb")]
+    #[arg(short, long, num_args=1.., default_value = "./data/surface.obj")]
     inputs: Vec<String>,
 }
 

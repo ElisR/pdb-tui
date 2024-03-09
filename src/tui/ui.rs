@@ -327,7 +327,7 @@ pub fn startup() -> Result<()> {
     Ok(())
 }
 
-pub fn run<Q: AsRef<str>>(pdb_files: Vec<Q>) -> Result<()> {
+pub fn run<Q: AsRef<str> + AsRef<Path>>(pdb_files: Vec<Q>) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
@@ -343,7 +343,8 @@ pub fn run<Q: AsRef<str>>(pdb_files: Vec<Q>) -> Result<()> {
     // let mut scene = Scene::<Compound>::default();
     for path in pdb_files.iter() {
         // scene.load_shapes_from_pdb(path)
-        scene.load_meshes_from_path("./data/surface.obj");
+        // scene.load_meshes_from_path("./data/surface.obj");
+        scene.load_meshes_from_path(path);
     }
     scene.recolor();
 
