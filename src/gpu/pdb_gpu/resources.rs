@@ -24,19 +24,11 @@ pub async fn load_model(
     let obj_cursor = Cursor::new(obj_text);
     let mut obj_reader = BufReader::new(obj_cursor);
 
-    let (models, _obj_materials) = tobj::load_obj_buf_async(
-        &mut obj_reader,
-        &tobj::LoadOptions {
-            triangulate: true,
-            single_index: true,
-            ..Default::default()
-        },
-        |p| async move {
-            let mat_text = load_string(&p).await.unwrap();
-            tobj::load_mtl_buf(&mut BufReader::new(Cursor::new(mat_text)))
-        },
-    )
-    .await?;
+    let (models, _obj_materials) =
+        tobj::load_obj_buf_async(&mut obj_reader, &tobj::GPU_LOAD_OPTIONS, |_p| async move {
+            Result::Err(tobj::LoadError::MaterialParseError)
+        })
+        .await?;
 
     let meshes = models
         .into_iter()
