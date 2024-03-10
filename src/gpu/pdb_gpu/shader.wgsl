@@ -66,7 +66,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let object_color = vec4f(0.5, 0.1, 0.1, 0.1); // NOTE I changed this, obviously
     
     // We don't need (or want) much ambient light, so 0.1 is fine
-    let ambient_strength = 0.5;
+    let ambient_strength = 0.2;
     let ambient_color = light.color * ambient_strength;
 
     let light_dir = normalize(light.position - in.world_position);
@@ -83,3 +83,4 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     return vec4<f32>(result, object_color.a);
 }
+
