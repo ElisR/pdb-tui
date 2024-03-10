@@ -25,7 +25,7 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.0, 1.0,
 );
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 1;
 
 struct Camera {
     eye: cgmath::Point3<f32>,
@@ -478,7 +478,7 @@ impl State {
             .unwrap();
 
         let light_uniform = LightUniform {
-            position: [2.0, 2.0, 2.0],
+            position: [20.0, 20.0, 20.0],
             _padding: 0,
             color: [1.0, 1.0, 1.0],
             _padding2: 0,
@@ -678,8 +678,8 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.draw_model_instanced(
                 &self.obj_model,
-                // 0..self.instances.len() as u32,
-                0..1,
+                0..self.instances.len() as u32,
+                // 0..1,
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
