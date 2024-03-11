@@ -339,6 +339,16 @@ fn create_render_pipeline(
     })
 }
 
+// Needs a big refactor
+// Need to separate `window`, `surface` and `config` and `output_buffer`
+//
+// Need to split out creation of `camera`, `instance` and `light` sections
+//
+// Master trait called `DrawingState` implementing `render`, `update`
+// Can't do `input` because they expect different types each time. Maybe create a wrapper type
+// Can do resize if we change the input argument to not be `winit` specific
+//
+// Within `render`, can maybe have an inner function that outputs `encoder` after performing a render pass
 impl State {
     async fn new(window: Window) -> Self {
         let size = window.inner_size();
