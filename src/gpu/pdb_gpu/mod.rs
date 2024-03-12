@@ -170,57 +170,12 @@ struct State<IS: InnerState> {
     light_render_pipeline: wgpu::RenderPipeline,
 }
 
-// Needs a big refactor
-// Need to separate `window`, `surface` and `config` and `output_buffer`
-//
-// Need to split out creation of `camera`, `instance` and `light` sections
-//
-// Master trait called `DrawingState` implementing `render`, `update`
-// Can't do `input` because they expect different types each time. Maybe create a wrapper type
-// Can do resize if we change the input argument to not be `winit` specific
-//
-// Within `render`, can maybe have an inner function that outputs `encoder` after performing a render pass
-//
-// Either have a trait implemented for both of them, or have an inner struct that is different for both of them
-impl State<WindowSpecificState> {
-    async fn new(window: Window) -> Self {
-        let size = window.inner_size();
-
-        // The instance is a handle to our GPU
-        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
-
-        // # Safety
-        //
-        // The surface needs to live as long as the window that created it.
-        // State owns the window so this should be safe.
-        let surface = unsafe { instance.create_surface(&window) }.unwrap();
-
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
-                },
-                None,
-            )
-            .await
-            .unwrap();
-
-        let inner_state = WindowSpecificState::new(window, surface, size, &adapter, &device);
-
+impl<IS: InnerState> State<IS> {
+    pub async fn new_from_inner_state(
+        inner_state: IS,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Self {
         let camera = Camera {
             eye: (0.0, 5.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
@@ -337,7 +292,6 @@ impl State<WindowSpecificState> {
             label: None,
         });
 
-        // TODO Make this not require config
         let depth_texture = texture::Texture::create_depth_texture(
             &device,
             inner_state.size().width,
@@ -406,11 +360,7 @@ impl State<WindowSpecificState> {
             light_render_pipeline,
         }
     }
-
-    pub fn window(&self) -> &Window {
-        &self.inner_state.window
-    }
-
+    /// Resize the canvas
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.inner_state.resize(new_size, &self.device);
@@ -424,11 +374,6 @@ impl State<WindowSpecificState> {
             );
         }
     }
-
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
-    }
-
     fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
@@ -451,6 +396,53 @@ impl State<WindowSpecificState> {
                 bytemuck::cast_slice(&[self.light_uniform]),
             );
         }
+    }
+}
+
+impl State<WindowSpecificState> {
+    async fn new(window: Window) -> Self {
+        let size = window.inner_size();
+
+        // The instance is a handle to our GPU
+        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+
+        // TODO In later verison of `wgpu` this is annotated with lifetime and no longer needs to be unsafe
+        // State owns the window so this should be safe.
+        let surface = unsafe { instance.create_surface(&window) }.unwrap();
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .unwrap();
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .unwrap();
+
+        let inner_state = WindowSpecificState::new(window, surface, size, &adapter, &device);
+
+        Self::new_from_inner_state(inner_state, device, queue).await
+    }
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        self.camera_controller.process_events(event)
+    }
+    pub fn window(&self) -> &Window {
+        &self.inner_state.window
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
