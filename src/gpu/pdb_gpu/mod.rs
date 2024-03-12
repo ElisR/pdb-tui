@@ -397,6 +397,34 @@ impl<IS: InnerState> State<IS> {
             );
         }
     }
+    // TODO Consider moving this functino outside of `State`, like the function for creating a render pipeline
+    /// Create the devices needed for cases with or without a window
+    async fn create_adapter_device_queue(
+        surface_option: Option<&wgpu::Surface>,
+        instance: &wgpu::Instance,
+    ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                compatible_surface: surface_option,
+                force_fallback_adapter: false,
+            })
+            .await
+            .unwrap();
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .unwrap();
+
+        (adapter, device, queue)
+    }
 }
 
 impl State<WindowSpecificState> {
@@ -414,28 +442,9 @@ impl State<WindowSpecificState> {
         // State owns the window so this should be safe.
         let surface = unsafe { instance.create_surface(&window) }.unwrap();
 
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
-                },
-                None,
-            )
-            .await
-            .unwrap();
-
+        let (adapter, device, queue) =
+            Self::create_adapter_device_queue(Some(&surface), &instance).await;
         let inner_state = WindowSpecificState::new(window, surface, size, &adapter, &device);
-
         Self::new_from_inner_state(inner_state, device, queue).await
     }
     fn input(&mut self, event: &WindowEvent) -> bool {
@@ -465,7 +474,6 @@ impl State<WindowSpecificState> {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            // NOTE I changed this to white
                             r: 0.9,
                             g: 0.9,
                             b: 0.9,
