@@ -98,8 +98,8 @@ struct WindowSpecificState {
     size: winit::dpi::PhysicalSize<u32>,
 }
 
-struct State {
-    window_state: WindowSpecificState,
+struct State<IS> {
+    inner_state: IS,
     device: wgpu::Device,
     queue: wgpu::Queue,
     render_pipeline: wgpu::RenderPipeline,
@@ -131,7 +131,7 @@ struct State {
 // Within `render`, can maybe have an inner function that outputs `encoder` after performing a render pass
 //
 // Either have a trait implemented for both of them, or have an inner struct that is different for both of them
-impl State {
+impl State<WindowSpecificState> {
     async fn new(window: Window) -> Self {
         let size = window.inner_size();
 
@@ -353,7 +353,7 @@ impl State {
         Self {
             device,
             queue,
-            window_state: WindowSpecificState {
+            inner_state: WindowSpecificState {
                 window,
                 surface,
                 config,
@@ -377,22 +377,22 @@ impl State {
     }
 
     pub fn window(&self) -> &Window {
-        &self.window_state.window
+        &self.inner_state.window
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.camera.aspect =
-                self.window_state.config.width as f32 / self.window_state.config.height as f32;
-            self.window_state.size = new_size;
-            self.window_state.config.width = new_size.width;
-            self.window_state.config.height = new_size.height;
-            self.window_state
+                self.inner_state.config.width as f32 / self.inner_state.config.height as f32;
+            self.inner_state.size = new_size;
+            self.inner_state.config.width = new_size.width;
+            self.inner_state.config.height = new_size.height;
+            self.inner_state
                 .surface
-                .configure(&self.device, &self.window_state.config);
+                .configure(&self.device, &self.inner_state.config);
             self.depth_texture = texture::Texture::create_depth_texture(
                 &self.device,
-                &self.window_state.config,
+                &self.inner_state.config,
                 "depth_texture",
             );
         }
@@ -427,7 +427,7 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.window_state.surface.get_current_texture()?;
+        let output = self.inner_state.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -539,7 +539,7 @@ pub async fn run() {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        state.resize(state.window_state.size)
+                        state.resize(state.inner_state.size)
                     }
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
