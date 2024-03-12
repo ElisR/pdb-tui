@@ -89,6 +89,7 @@ fn create_render_pipeline(
 
 pub trait AcceptableState {
     fn size(&self) -> winit::dpi::PhysicalSize<u32>;
+    fn format(&self) -> wgpu::TextureFormat;
 }
 
 struct WindowSpecificState {
@@ -101,6 +102,9 @@ struct WindowSpecificState {
 impl AcceptableState for WindowSpecificState {
     fn size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
+    }
+    fn format(&self) -> wgpu::TextureFormat {
+        self.config.format
     }
 }
 
@@ -194,13 +198,20 @@ impl State<WindowSpecificState> {
             view_formats: vec![],
         };
 
-        surface.configure(&device, &config);
+        let inner_state = WindowSpecificState {
+            window,
+            surface,
+            config,
+            size,
+        };
+
+        inner_state.surface.configure(&device, &inner_state.config);
 
         let camera = Camera {
             eye: (0.0, 5.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
+            aspect: inner_state.config.width as f32 / inner_state.config.height as f32,
             fovy: 45.0,
             znear: 0.1,
             zfar: 1000.0,
@@ -312,8 +323,9 @@ impl State<WindowSpecificState> {
             label: None,
         });
 
+        // TODO Make this not require config
         let depth_texture =
-            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+            texture::Texture::create_depth_texture(&device, &inner_state.config, "depth_texture");
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -329,7 +341,7 @@ impl State<WindowSpecificState> {
             create_render_pipeline(
                 &device,
                 &render_pipeline_layout,
-                config.format,
+                inner_state.format(),
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc(), InstanceRaw::desc()],
                 shader,
@@ -349,7 +361,7 @@ impl State<WindowSpecificState> {
             create_render_pipeline(
                 &device,
                 &layout,
-                config.format,
+                inner_state.format(),
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc()],
                 shader,
@@ -359,12 +371,7 @@ impl State<WindowSpecificState> {
         Self {
             device,
             queue,
-            inner_state: WindowSpecificState {
-                window,
-                surface,
-                config,
-                size,
-            },
+            inner_state,
             render_pipeline,
             obj_model,
             camera,
