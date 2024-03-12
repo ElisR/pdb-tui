@@ -87,6 +87,10 @@ fn create_render_pipeline(
     })
 }
 
+pub trait AcceptableState {
+    fn size(&self) -> winit::dpi::PhysicalSize<u32>;
+}
+
 struct WindowSpecificState {
     window: Window,
     surface: wgpu::Surface,
@@ -94,7 +98,13 @@ struct WindowSpecificState {
     size: winit::dpi::PhysicalSize<u32>,
 }
 
-struct State<IS> {
+impl AcceptableState for WindowSpecificState {
+    fn size(&self) -> winit::dpi::PhysicalSize<u32> {
+        self.size
+    }
+}
+
+struct State<IS: AcceptableState> {
     inner_state: IS,
     device: wgpu::Device,
     queue: wgpu::Queue,
