@@ -87,9 +87,10 @@ fn create_render_pipeline(
     })
 }
 
-pub trait AcceptableState {
+pub trait InnerState {
     fn size(&self) -> winit::dpi::PhysicalSize<u32>;
     fn format(&self) -> wgpu::TextureFormat;
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device);
 }
 
 struct WindowSpecificState {
@@ -99,16 +100,56 @@ struct WindowSpecificState {
     size: winit::dpi::PhysicalSize<u32>,
 }
 
-impl AcceptableState for WindowSpecificState {
+impl WindowSpecificState {
+    pub fn new(
+        window: Window,
+        surface: wgpu::Surface,
+        size: winit::dpi::PhysicalSize<u32>,
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+    ) -> Self {
+        let surface_caps = surface.get_capabilities(adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(surface_caps.formats[0]);
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: size.width,
+            height: size.height,
+            present_mode: surface_caps.present_modes[0],
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: vec![],
+        };
+        surface.configure(device, &config);
+        Self {
+            window,
+            surface,
+            config,
+            size,
+        }
+    }
+}
+
+impl InnerState for WindowSpecificState {
     fn size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
     }
     fn format(&self) -> wgpu::TextureFormat {
         self.config.format
     }
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
+        self.size = new_size;
+        self.config.width = new_size.width;
+        self.config.height = new_size.height;
+        self.surface.configure(device, &self.config);
+    }
 }
 
-struct State<IS: AcceptableState> {
+struct State<IS: InnerState> {
     inner_state: IS,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -178,36 +219,13 @@ impl State<WindowSpecificState> {
             .await
             .unwrap();
 
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-        };
-
-        surface.configure(&device, &config);
-        let inner_state = WindowSpecificState {
-            window,
-            surface,
-            config,
-            size,
-        };
+        let inner_state = WindowSpecificState::new(window, surface, size, &adapter, &device);
 
         let camera = Camera {
             eye: (0.0, 5.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
-            aspect: inner_state.config.width as f32 / inner_state.config.height as f32,
+            aspect: inner_state.size().width as f32 / inner_state.size().height as f32,
             fovy: 45.0,
             znear: 0.1,
             zfar: 1000.0,
@@ -320,8 +338,12 @@ impl State<WindowSpecificState> {
         });
 
         // TODO Make this not require config
-        let depth_texture =
-            texture::Texture::create_depth_texture(&device, &inner_state.config, "depth_texture");
+        let depth_texture = texture::Texture::create_depth_texture(
+            &device,
+            inner_state.size().width,
+            inner_state.size().height,
+            "depth_texture",
+        );
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -391,17 +413,13 @@ impl State<WindowSpecificState> {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.inner_state.resize(new_size, &self.device);
             self.camera.aspect =
-                self.inner_state.config.width as f32 / self.inner_state.config.height as f32;
-            self.inner_state.size = new_size;
-            self.inner_state.config.width = new_size.width;
-            self.inner_state.config.height = new_size.height;
-            self.inner_state
-                .surface
-                .configure(&self.device, &self.inner_state.config);
+                self.inner_state.size().width as f32 / self.inner_state.size().height as f32;
             self.depth_texture = texture::Texture::create_depth_texture(
                 &self.device,
-                &self.inner_state.config,
+                self.inner_state.size().width,
+                self.inner_state.size().height,
                 "depth_texture",
             );
         }
