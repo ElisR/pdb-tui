@@ -63,7 +63,7 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let object_color = vec4f(0.5, 0.1, 0.1, 0.1); // NOTE I changed this, obviously
+    let object_color = vec4f(0.5, 0.1, 0.1, 1.0); // NOTE I changed this, obviously
     
     // We don't need (or want) much ambient light, so 0.1 is fine
     let ambient_strength = 0.2;

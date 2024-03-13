@@ -177,7 +177,7 @@ impl<IS: InnerState> State<IS> {
         queue: wgpu::Queue,
     ) -> Self {
         let camera = Camera {
-            eye: (0.0, 5.0, -10.0).into(),
+            eye: (50.0, 5.0, -10.0).into(),
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: inner_state.size().width as f32 / inner_state.size().height as f32,
