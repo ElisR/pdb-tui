@@ -682,16 +682,18 @@ impl State<WindowlessState> {
         self.device.poll(wgpu::Maintain::Wait);
         rx.recv_async().await.unwrap().unwrap();
 
-        let data = buffer_slice.get_mapped_range();
+        {
+            let data = buffer_slice.get_mapped_range();
 
-        use image::{ImageBuffer, Rgba};
-        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-            self.inner_state.size().width,
-            self.inner_state.size().height,
-            data,
-        )
-        .unwrap();
-        buffer.save("image.png").unwrap();
+            use image::{ImageBuffer, Rgba};
+            let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+                self.inner_state.size().width,
+                self.inner_state.size().height,
+                data,
+            )
+            .unwrap();
+            buffer.save("image.png").unwrap();
+        }
         self.inner_state.output_buffer.unmap();
 
         Ok(())
