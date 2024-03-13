@@ -580,7 +580,7 @@ impl State<WindowlessState> {
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: self.inner_state.size().width,
-                height: self.inner_state.size().width,
+                height: self.inner_state.size().height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
