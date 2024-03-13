@@ -4,7 +4,7 @@ use std::iter;
 
 use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
-use winit::{event::*, window::Window};
+use winit::{dpi::PhysicalSize, event::*, window::Window};
 
 pub mod camera;
 pub mod instance;
@@ -93,14 +93,14 @@ pub trait InnerState {
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device);
 }
 
-struct WindowSpecificState {
+struct WindowedState {
     window: Window,
     surface: wgpu::Surface,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
 }
 
-impl WindowSpecificState {
+impl WindowedState {
     pub fn new(
         window: Window,
         surface: wgpu::Surface,
@@ -134,7 +134,7 @@ impl WindowSpecificState {
     }
 }
 
-impl InnerState for WindowSpecificState {
+impl InnerState for WindowedState {
     fn size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
     }
@@ -397,7 +397,7 @@ impl<IS: InnerState> State<IS> {
             );
         }
     }
-    // TODO Consider moving this functino outside of `State`, like the function for creating a render pipeline
+    // TODO Consider moving this function outside of `State`, like the function for creating a render pipeline
     /// Create the devices needed for cases with or without a window
     async fn create_adapter_device_queue(
         surface_option: Option<&wgpu::Surface>,
@@ -427,7 +427,7 @@ impl<IS: InnerState> State<IS> {
     }
 }
 
-impl State<WindowSpecificState> {
+impl State<WindowedState> {
     async fn new(window: Window) -> Self {
         let size = window.inner_size();
 
@@ -444,7 +444,7 @@ impl State<WindowSpecificState> {
 
         let (adapter, device, queue) =
             Self::create_adapter_device_queue(Some(&surface), &instance).await;
-        let inner_state = WindowSpecificState::new(window, surface, size, &adapter, &device);
+        let inner_state = WindowedState::new(window, surface, size, &adapter, &device);
         Self::new_from_inner_state(inner_state, device, queue).await
     }
     fn input(&mut self, event: &WindowEvent) -> bool {
@@ -512,6 +512,187 @@ impl State<WindowSpecificState> {
 
         self.queue.submit(iter::once(encoder.finish()));
         output.present();
+
+        Ok(())
+    }
+}
+
+struct WindowlessState {
+    size: winit::dpi::PhysicalSize<u32>,
+    output_buffer: wgpu::Buffer,
+}
+
+impl WindowlessState {
+    pub fn new(
+        size: winit::dpi::PhysicalSize<u32>,
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+    ) -> Self {
+        let u32_size = std::mem::size_of::<u32>() as u32;
+        let output_buffer_size = (u32_size * size.width * size.height) as wgpu::BufferAddress;
+        let output_buffer_desc = wgpu::BufferDescriptor {
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST
+                // this tells wpgu that we want to read this buffer from the cpu
+                | wgpu::BufferUsages::MAP_READ,
+            label: None,
+            mapped_at_creation: false,
+        };
+        let output_buffer = device.create_buffer(&output_buffer_desc);
+        Self {
+            size,
+            output_buffer,
+        }
+    }
+}
+
+impl InnerState for WindowlessState {
+    fn size(&self) -> winit::dpi::PhysicalSize<u32> {
+        self.size
+    }
+    fn format(&self) -> wgpu::TextureFormat {
+        wgpu::TextureFormat::Rgba8UnormSrgb
+    }
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
+        self.size = new_size;
+    }
+}
+
+impl State<WindowlessState> {
+    async fn new(size: PhysicalSize<u32>) -> Self {
+        // The instance is a handle to our GPU
+        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+
+        let (adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
+        let inner_state = WindowlessState::new(size, &adapter, &device);
+        Self::new_from_inner_state(inner_state, device, queue).await
+    }
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        self.camera_controller.process_events(event)
+    }
+    // TODO Need to change this error
+    // TODO Need to refactor more out of this function
+    async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: self.inner_state.size().width,
+                height: self.inner_state.size().width,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.inner_state.format(),
+            view_formats: &[], // NOTE This may be incorrect and needs to be checked
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: Some("Output Texture"),
+        };
+        let texture = self.device.create_texture(&texture_desc);
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.9,
+                            g: 0.9,
+                            b: 0.9,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.set_pipeline(&self.light_render_pipeline);
+            render_pass.draw_light_model(
+                &self.obj_model,
+                &self.camera_bind_group,
+                &self.light_bind_group,
+            );
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+                &self.light_bind_group,
+            );
+        }
+
+        let u32_size = std::mem::size_of::<u32>() as u32;
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.inner_state.output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(u32_size * self.inner_state.size().width),
+                    rows_per_image: Some(self.inner_state.size().height), // NOTE I'm slightly sceptical of these values, based on docstring example. Maybe it infers automaically
+                },
+            },
+            // TODO Stop redefining the same size
+            wgpu::Extent3d {
+                width: self.inner_state.size().width,
+                height: self.inner_state.size().height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(iter::once(encoder.finish()));
+
+        let buffer_slice = self.inner_state.output_buffer.slice(..);
+
+        // NOTE: We have to create the mapping THEN device.poll() before await
+        // the future. Otherwise the application will freeze.
+        let (tx, rx) = flume::bounded(1);
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            tx.send(result).unwrap();
+        });
+        self.device.poll(wgpu::Maintain::Wait);
+        rx.recv_async().await.unwrap().unwrap();
+
+        let data = buffer_slice.get_mapped_range();
+
+        use image::{ImageBuffer, Rgba};
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            self.inner_state.size().width,
+            self.inner_state.size().height,
+            data,
+        )
+        .unwrap();
+        buffer.save("image.png").unwrap();
+        self.inner_state.output_buffer.unmap();
 
         Ok(())
     }

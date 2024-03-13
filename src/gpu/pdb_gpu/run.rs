@@ -1,6 +1,6 @@
 use tracing::warn;
 
-use crate::gpu::pdb_gpu::State;
+use crate::gpu::pdb_gpu::{State, WindowedState, WindowlessState};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -17,7 +17,7 @@ pub async fn run() {
         .unwrap();
 
     // State::new uses async code, so we're going to wait for it to finish
-    let mut state = State::new(window).await;
+    let mut state = State::<WindowedState>::new(window).await;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
