@@ -414,7 +414,7 @@ impl<IS: InnerState> State<IS> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: None,
+                    label: Some("Main Device"),
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
                 },
@@ -523,11 +523,7 @@ struct WindowlessState {
 }
 
 impl WindowlessState {
-    pub fn new(
-        size: winit::dpi::PhysicalSize<u32>,
-        adapter: &wgpu::Adapter,
-        device: &wgpu::Device,
-    ) -> Self {
+    pub fn new(size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) -> Self {
         let u32_size = std::mem::size_of::<u32>() as u32;
         let output_buffer_size = (u32_size * size.width * size.height) as wgpu::BufferAddress;
         let output_buffer_desc = wgpu::BufferDescriptor {
@@ -535,7 +531,7 @@ impl WindowlessState {
             usage: wgpu::BufferUsages::COPY_DST
                 // this tells wpgu that we want to read this buffer from the cpu
                 | wgpu::BufferUsages::MAP_READ,
-            label: None,
+            label: Some("Windowless Output Buffer"),
             mapped_at_creation: false,
         };
         let output_buffer = device.create_buffer(&output_buffer_desc);
@@ -553,7 +549,7 @@ impl InnerState for WindowlessState {
     fn format(&self) -> wgpu::TextureFormat {
         wgpu::TextureFormat::Rgba8UnormSrgb
     }
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, _device: &wgpu::Device) {
         self.size = new_size;
     }
 }
@@ -567,13 +563,16 @@ impl State<WindowlessState> {
             ..Default::default()
         });
 
-        let (adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
-        let inner_state = WindowlessState::new(size, &adapter, &device);
+        let (_adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
+        let inner_state = WindowlessState::new(size, &device);
         Self::new_from_inner_state(inner_state, device, queue).await
     }
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
-    }
+
+    // TODO Need to actually implement this function
+    // fn input(&mut self, event: &WindowEvent) -> bool {
+    //     self.camera_controller.process_events(event)
+    // }
+
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -589,11 +588,10 @@ impl State<WindowlessState> {
             format: self.inner_state.format(),
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            label: Some("Output Texture"),
+            label: Some("Windowless Output Texture"),
         };
         let texture = self.device.create_texture(&texture_desc);
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self
             .device
@@ -605,7 +603,7 @@ impl State<WindowlessState> {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &texture_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -694,6 +692,7 @@ impl State<WindowlessState> {
             .unwrap();
             buffer.save("image.png").unwrap();
         }
+
         self.inner_state.output_buffer.unmap();
 
         Ok(())
