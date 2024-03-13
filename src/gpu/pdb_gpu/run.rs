@@ -1,4 +1,6 @@
 use tracing::warn;
+use tracing::Level;
+use tracing_subscriber;
 
 use crate::gpu::pdb_gpu::{State, WindowedState, WindowlessState};
 use winit::{
@@ -7,7 +9,7 @@ use winit::{
 };
 
 pub async fn run() {
-    env_logger::init();
+    tracing_subscriber::fmt().with_max_level(Level::WARN).init();
 
     let event_loop = EventLoop::new();
     let title = env!("CARGO_PKG_NAME");

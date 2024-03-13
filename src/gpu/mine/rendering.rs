@@ -346,7 +346,7 @@ impl State {
 }
 
 pub async fn run() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
