@@ -1,17 +1,16 @@
 use crate::gpu::pdb_gpu::model::Vertex;
 
 pub struct Instance {
-    pub position: cgmath::Vector3<f32>,
-    pub rotation: cgmath::Quaternion<f32>,
+    pub position: nalgebra::Vector3<f32>,
+    pub rotation: nalgebra::Rotation3<f32>,
 }
 
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
-        let model =
-            cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation);
+        let model = nalgebra::Isometry3::from_parts(self.position.into(), self.rotation.into());
         InstanceRaw {
-            model: model.into(),
-            normal: cgmath::Matrix3::from(self.rotation).into(),
+            model: model.to_matrix().into(),
+            normal: self.rotation.matrix().clone_owned().into(),
         }
     }
 }

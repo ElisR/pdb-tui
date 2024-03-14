@@ -1,11 +1,9 @@
-use cgmath::prelude::*;
-
 use winit::event::*;
 
 pub struct Camera {
-    pub eye: cgmath::Point3<f32>,
-    pub target: cgmath::Point3<f32>,
-    pub up: cgmath::Vector3<f32>,
+    pub eye: nalgebra::Point3<f32>,
+    pub target: nalgebra::Point3<f32>,
+    pub up: nalgebra::Vector3<f32>,
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
@@ -13,9 +11,11 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+    pub fn build_view_projection_matrix(&self) -> nalgebra::Matrix4<f32> {
+        let view =
+            nalgebra::Isometry3::look_at_rh(&self.eye, &self.target, &self.up).to_homogeneous();
+        let proj = nalgebra::Perspective3::new(self.aspect, self.fovy, self.znear, self.zfar)
+            .to_homogeneous();
         proj * view
     }
 }
@@ -30,8 +30,8 @@ pub struct CameraUniform {
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
-            view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
+            view_position: [0.0; 4], // TODO Define a default for this
+            view_proj: nalgebra::Matrix4::identity().into(),
         }
     }
 
@@ -123,7 +123,7 @@ impl CameraController {
             camera.eye -= forward_norm * self.speed;
         }
 
-        let right = forward_norm.cross(camera.up);
+        let right = forward_norm.cross(&camera.up);
 
         // Redo radius calc in case the up/ down is pressed.
         let forward = camera.target - camera.eye;

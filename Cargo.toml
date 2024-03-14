@@ -33,7 +33,6 @@ pollster = "0.3"  # TODO Swap this out for tokio
 winit = "0.28"
 wgpu = "0.18"
 bytemuck = { version = "1.12", features = [ "derive" ] }
-cgmath = "0.18" # TODO Remove this and never refer to it in actual code
 flume = "0.11.0"
 
 [[bin]]
