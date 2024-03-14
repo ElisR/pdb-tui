@@ -2,7 +2,6 @@
 
 use std::iter;
 
-use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event::*, window::Window};
 
@@ -18,7 +17,7 @@ use instance::{Instance, InstanceRaw, LightUniform};
 use model::{DrawLight, DrawModel, Vertex};
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
+pub const OPENGL_TO_WGPU_MATRIX: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 0.5, 0.5,
@@ -177,11 +176,11 @@ impl<IS: InnerState> State<IS> {
         queue: wgpu::Queue,
     ) -> Self {
         let camera = Camera {
-            eye: (50.0, 5.0, -10.0).into(),
-            target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
+            eye: nalgebra::Point3::new(50.0, 5.0, -10.0),
+            target: nalgebra::Point3::origin(),
+            up: nalgebra::Vector3::y(),
             aspect: inner_state.size().width as f32 / inner_state.size().height as f32,
-            fovy: 45.0,
+            fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 1000.0,
         };
@@ -228,15 +227,15 @@ impl<IS: InnerState> State<IS> {
                     let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
                     let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
 
-                    let position = cgmath::Vector3 { x, y: 0.0, z };
+                    let position = nalgebra::Vector3::new(x, 0.0, z);
 
-                    let rotation = if position.is_zero() {
-                        cgmath::Quaternion::from_axis_angle(
-                            cgmath::Vector3::unit_z(),
-                            cgmath::Deg(0.0),
-                        )
+                    let rotation = if position == nalgebra::Vector3::zeros() {
+                        nalgebra::Rotation3::from_axis_angle(&nalgebra::Vector3::z_axis(), 0.0)
                     } else {
-                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                        nalgebra::Rotation3::from_axis_angle(
+                            &nalgebra::Unit::new_normalize(position),
+                            std::f32::consts::FRAC_PI_4,
+                        )
                     };
 
                     Instance { position, rotation }
@@ -385,11 +384,12 @@ impl<IS: InnerState> State<IS> {
 
         // Update the light
         if false {
-            let old_position: cgmath::Vector3<_> = self.light_uniform.position.into();
-            self.light_uniform.position =
-                (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
-                    * old_position)
-                    .into();
+            let old_position: nalgebra::Point3<_> = self.light_uniform.position.into();
+            self.light_uniform.position = (nalgebra::Rotation3::from_axis_angle(
+                &nalgebra::Vector3::y_axis(),
+                std::f32::consts::PI / 180.0,
+            ) * old_position)
+                .into();
             self.queue.write_buffer(
                 &self.light_buffer,
                 0,
