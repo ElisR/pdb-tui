@@ -109,12 +109,11 @@ impl<R: Rasterizer> Canvas<R> {
     /// `x` here runs from `0..width` i.e. `0..grid_width()*render_width()`.
     ///
     /// Here, chunks are grouped like like
-    /// ```
+    ///
     /// 0011223344
     /// 0011223344
     /// 5566778899
     /// 5566778899
-    /// ```
     fn pixel_to_index(&self, x: usize, y: usize) -> Result<usize, CanvasError> {
         // This makes the most sense because then horizontally adjacent characters adjacent in memory
         if x < self.width && y < self.height {
