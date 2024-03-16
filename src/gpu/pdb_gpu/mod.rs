@@ -10,7 +10,8 @@ pub mod input;
 pub mod instance;
 pub mod model;
 pub mod resources;
-pub mod run;
+pub mod run_tui;
+pub mod run_windowed;
 pub mod texture;
 
 use camera::{Camera, CameraController, CameraUniform};

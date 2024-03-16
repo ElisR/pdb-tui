@@ -1,16 +1,14 @@
-use tracing::error;
 use tracing::warn;
 use tracing::Level;
 use tracing_subscriber;
-use winit::dpi::PhysicalSize;
 
-use crate::gpu::pdb_gpu::{State, WindowedState, WindowlessState};
+use crate::gpu::pdb_gpu::{State, WindowedState};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
 };
 
-pub async fn run_windowed() {
+pub async fn run() {
     tracing_subscriber::fmt().with_max_level(Level::WARN).init();
 
     let event_loop = EventLoop::new();
@@ -70,23 +68,4 @@ pub async fn run_windowed() {
             _ => {}
         }
     });
-}
-
-pub async fn run_windowless() {
-    tracing_subscriber::fmt().with_max_level(Level::WARN).init();
-
-    // State::new uses async code, so we're going to wait for it to finish
-    let mut state = State::<WindowlessState>::new(PhysicalSize {
-        width: 1024,
-        height: 1024,
-    })
-    .await;
-
-    match state.render().await {
-        Ok(_) => {}
-        // Reconfigure the surface if it's lost or outdated
-        Err(_) => {
-            error!("Something went wrong with rendering.")
-        }
-    };
 }
