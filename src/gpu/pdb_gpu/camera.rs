@@ -1,4 +1,4 @@
-use winit::event::*;
+use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode, UnifiedKeyKind};
 
 pub struct Camera {
     pub eye: nalgebra::Point3<f32>,
@@ -74,45 +74,32 @@ impl CameraController {
         }
     }
 
-    pub fn process_events(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(keycode),
-                        ..
-                    },
-                ..
-            } => {
-                let is_pressed = *state == ElementState::Pressed;
-                match keycode {
-                    VirtualKeyCode::Space => {
-                        self.is_up_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::LShift => {
-                        self.is_down_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::U | VirtualKeyCode::K | VirtualKeyCode::Up => {
-                        self.is_forward_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::H | VirtualKeyCode::Left => {
-                        self.is_left_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::D | VirtualKeyCode::J | VirtualKeyCode::Down => {
-                        self.is_backward_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::L | VirtualKeyCode::Right => {
-                        self.is_right_pressed = is_pressed;
-                        true
-                    }
-                    _ => false,
-                }
+    pub fn process_events(&mut self, event: UnifiedEvent) -> bool {
+        let is_pressed = event.kind == UnifiedKeyKind::Press;
+        match event.keycode {
+            UnifiedKeyCode::Space => {
+                self.is_up_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::Shift => {
+                self.is_down_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::U | UnifiedKeyCode::K | UnifiedKeyCode::Up => {
+                self.is_forward_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::H | UnifiedKeyCode::Left => {
+                self.is_left_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::D | UnifiedKeyCode::J | UnifiedKeyCode::Down => {
+                self.is_backward_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::L | UnifiedKeyCode::Right => {
+                self.is_right_pressed = is_pressed;
+                true
             }
             _ => false,
         }
