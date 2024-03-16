@@ -38,8 +38,8 @@ pub enum UnifiedKeyCode {
     Unknown,
 }
 
-impl From<Event> for UnifiedEvent {
-    fn from(event: Event) -> Self {
+impl From<&Event> for UnifiedEvent {
+    fn from(event: &Event) -> Self {
         match event {
             Event::Key(KeyEvent {
                 code,
@@ -56,6 +56,7 @@ impl From<Event> for UnifiedEvent {
                     KeyCode::Char('u') => UnifiedKeyCode::U,
                     KeyCode::Char('d') => UnifiedKeyCode::D,
                     KeyCode::Char(' ') => UnifiedKeyCode::Space,
+                    KeyCode::Esc => UnifiedKeyCode::Esc,
                     KeyCode::Up => UnifiedKeyCode::Up,
                     KeyCode::Down => UnifiedKeyCode::Down,
                     KeyCode::Left => UnifiedKeyCode::Left,

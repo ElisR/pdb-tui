@@ -2,6 +2,7 @@
 
 use std::iter;
 
+use crossterm::event::Event;
 use image::{ImageBuffer, Rgba};
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event::*, window::Window};
@@ -577,10 +578,10 @@ impl State<WindowlessState> {
         Self::new_from_inner_state(inner_state, device, queue).await
     }
 
-    // TODO Need to actually implement this function
-    // fn input(&mut self, event: &WindowEvent) -> bool {
-    //     self.camera_controller.process_events(event)
-    // }
+    // TODO See if a generic function operating on `Into<UnifiedEvent>` can work here.
+    fn input(&mut self, event: &Event) -> bool {
+        self.camera_controller.process_events(event.into())
+    }
 
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
