@@ -2,6 +2,7 @@
 
 use std::iter;
 
+use image::{ImageBuffer, Rgba};
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event::*, window::Window};
 
@@ -522,6 +523,7 @@ impl State<WindowedState> {
 struct WindowlessState {
     size: winit::dpi::PhysicalSize<u32>,
     output_buffer: wgpu::Buffer,
+    output_image: Vec<u8>,
 }
 
 impl WindowlessState {
@@ -537,9 +539,14 @@ impl WindowlessState {
             mapped_at_creation: false,
         };
         let output_buffer = device.create_buffer(&output_buffer_desc);
+
+        // Multiply by 4 because RGBA
+        let output_image_size = size.width as usize * size.height as usize * 4;
+        let output_image = Vec::<u8>::with_capacity(output_image_size);
         Self {
             size,
             output_buffer,
+            output_image,
         }
     }
 }
@@ -685,17 +692,18 @@ impl State<WindowlessState> {
         {
             let data = buffer_slice.get_mapped_range();
 
-            use image::{ImageBuffer, Rgba};
-            let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-                self.inner_state.size().width,
-                self.inner_state.size().height,
-                data,
-            )
-            .unwrap();
-            buffer.save("image.png").unwrap();
+            self.inner_state.output_image.extend_from_slice(&data[..]);
         }
 
         self.inner_state.output_buffer.unmap();
+
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            self.inner_state.size().width,
+            self.inner_state.size().height,
+            &self.inner_state.output_image[..],
+        )
+        .unwrap();
+        buffer.save("from_inner_state.png").unwrap();
 
         Ok(())
     }
