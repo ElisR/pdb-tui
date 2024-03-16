@@ -37,6 +37,15 @@ impl From<f32> for ColoredPixel {
     }
 }
 
+impl From<u8> for ColoredPixel {
+    fn from(value: u8) -> Self {
+        Self {
+            intensity: value as f32 / std::u8::MAX as f32,
+            color: Color::Black,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ColoredChar {
     pub symbol: char,
