@@ -6,6 +6,20 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode, WindowEvent};
 
 // TODO Also needs to work with modifiers
 
+pub struct UnifiedEvent {
+    pub keycode: UnifiedKeyCode,
+    pub kind: UnifiedKeyKind,
+}
+
+// TODO Consider changing `kind` to an `option` instead
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum UnifiedKeyKind {
+    Press,
+    Release,
+    Unknown,
+}
+
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum UnifiedKeyCode {
     Space,
     Q,
@@ -24,63 +38,90 @@ pub enum UnifiedKeyCode {
     Unknown,
 }
 
-impl From<Event> for UnifiedKeyCode {
+impl From<Event> for UnifiedEvent {
     fn from(event: Event) -> Self {
         match event {
             Event::Key(KeyEvent {
                 code,
                 modifiers: _, // TODO Account for this
-                kind: KeyEventKind::Press,
+                kind,
                 ..
-            }) => match code {
-                KeyCode::Char('q') => Self::Q,
-                KeyCode::Char('h') => Self::H,
-                KeyCode::Char('j') => Self::J,
-                KeyCode::Char('k') => Self::K,
-                KeyCode::Char('l') => Self::L,
-                KeyCode::Char('u') => Self::U,
-                KeyCode::Char('d') => Self::D,
-                KeyCode::Char(' ') => Self::Space,
-                KeyCode::Up => Self::Up,
-                KeyCode::Down => Self::Down,
-                KeyCode::Left => Self::Left,
-                KeyCode::Right => Self::Right,
-                _ => Self::Unknown,
+            }) => {
+                let new_code = match code {
+                    KeyCode::Char('q') => UnifiedKeyCode::Q,
+                    KeyCode::Char('h') => UnifiedKeyCode::H,
+                    KeyCode::Char('j') => UnifiedKeyCode::J,
+                    KeyCode::Char('k') => UnifiedKeyCode::K,
+                    KeyCode::Char('l') => UnifiedKeyCode::L,
+                    KeyCode::Char('u') => UnifiedKeyCode::U,
+                    KeyCode::Char('d') => UnifiedKeyCode::D,
+                    KeyCode::Char(' ') => UnifiedKeyCode::Space,
+                    KeyCode::Up => UnifiedKeyCode::Up,
+                    KeyCode::Down => UnifiedKeyCode::Down,
+                    KeyCode::Left => UnifiedKeyCode::Left,
+                    KeyCode::Right => UnifiedKeyCode::Right,
+                    _ => UnifiedKeyCode::Unknown,
+                };
+                let new_kind = match kind {
+                    KeyEventKind::Press => UnifiedKeyKind::Press,
+                    KeyEventKind::Release => UnifiedKeyKind::Release,
+                    _ => UnifiedKeyKind::Unknown,
+                };
+                UnifiedEvent {
+                    keycode: new_code,
+                    kind: new_kind,
+                }
+            }
+            _ => UnifiedEvent {
+                keycode: UnifiedKeyCode::Unknown,
+                kind: UnifiedKeyKind::Unknown,
             },
-            _ => Self::Unknown,
         }
     }
 }
 
-impl<'a> From<WindowEvent<'a>> for UnifiedKeyCode {
-    fn from(event: WindowEvent) -> Self {
+impl<'a> From<&WindowEvent<'a>> for UnifiedEvent {
+    fn from(event: &WindowEvent) -> Self {
         match event {
             WindowEvent::KeyboardInput {
                 input:
                     KeyboardInput {
-                        state: ElementState::Pressed,
+                        state,
                         virtual_keycode: Some(keycode),
                         ..
                     },
                 ..
-            } => match keycode {
-                VirtualKeyCode::Q => Self::Q,
-                VirtualKeyCode::H => Self::H,
-                VirtualKeyCode::J => Self::J,
-                VirtualKeyCode::K => Self::K,
-                VirtualKeyCode::L => Self::L,
-                VirtualKeyCode::U => Self::U,
-                VirtualKeyCode::D => Self::D,
-                VirtualKeyCode::Space => Self::Space,
-                VirtualKeyCode::Up => Self::Up,
-                VirtualKeyCode::Down => Self::Down,
-                VirtualKeyCode::Left => Self::Left,
-                VirtualKeyCode::Right => Self::Right,
-                VirtualKeyCode::LShift => Self::Shift,
-                VirtualKeyCode::RShift => Self::Shift,
-                _ => Self::Unknown,
+            } => {
+                let new_code = match keycode {
+                    VirtualKeyCode::Q => UnifiedKeyCode::Q,
+                    VirtualKeyCode::H => UnifiedKeyCode::H,
+                    VirtualKeyCode::J => UnifiedKeyCode::J,
+                    VirtualKeyCode::K => UnifiedKeyCode::K,
+                    VirtualKeyCode::L => UnifiedKeyCode::L,
+                    VirtualKeyCode::U => UnifiedKeyCode::U,
+                    VirtualKeyCode::D => UnifiedKeyCode::D,
+                    VirtualKeyCode::Space => UnifiedKeyCode::Space,
+                    VirtualKeyCode::Up => UnifiedKeyCode::Up,
+                    VirtualKeyCode::Down => UnifiedKeyCode::Down,
+                    VirtualKeyCode::Left => UnifiedKeyCode::Left,
+                    VirtualKeyCode::Right => UnifiedKeyCode::Right,
+                    VirtualKeyCode::LShift => UnifiedKeyCode::Shift,
+                    VirtualKeyCode::RShift => UnifiedKeyCode::Shift,
+                    _ => UnifiedKeyCode::Unknown,
+                };
+                let new_kind = match state {
+                    ElementState::Pressed => UnifiedKeyKind::Press,
+                    ElementState::Released => UnifiedKeyKind::Release,
+                };
+                UnifiedEvent {
+                    keycode: new_code,
+                    kind: new_kind,
+                }
+            }
+            _ => UnifiedEvent {
+                keycode: UnifiedKeyCode::Unknown,
+                kind: UnifiedKeyKind::Unknown,
             },
-            _ => Self::Unknown,
         }
     }
 }
@@ -91,8 +132,8 @@ mod tests {
     use crossterm::event::{KeyEventState, KeyModifiers};
     use winit::event::{DeviceId, ModifiersState};
 
-    fn is_space(event: UnifiedKeyCode) -> bool {
-        matches!(event, UnifiedKeyCode::Space)
+    fn is_space(event: UnifiedEvent) -> bool {
+        matches!(event.keycode, UnifiedKeyCode::Space)
     }
 
     #[test]
@@ -110,7 +151,7 @@ mod tests {
                 is_synthetic: false,
             }
         };
-        assert!(is_space(space_event.into()));
+        assert!(is_space((&space_event).into()));
     }
 
     #[test]
