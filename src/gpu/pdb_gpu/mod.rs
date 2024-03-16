@@ -449,7 +449,7 @@ impl State<WindowedState> {
         Self::new_from_inner_state(inner_state, device, queue).await
     }
     fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
+        self.camera_controller.process_events(event.into())
     }
     pub fn window(&self) -> &Window {
         &self.inner_state.window
