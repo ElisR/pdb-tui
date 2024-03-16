@@ -79,8 +79,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let specular_strength = pow(max(dot(in.world_normal, half_dir), 0.0), 32.0);
     let specular_color = specular_strength * light.color;
 
-    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
+    // let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
+    // return vec4<f32>(result, object_color.a);
 
-    return vec4<f32>(result, object_color.a);
+    // Encoding intensity information in alpha only for easier TUI debugging
+    let light_strength = ambient_strength + diffuse_strength + specular_strength;
+    return vec4<f32>(object_color.xyz, light_strength);
 }
 
