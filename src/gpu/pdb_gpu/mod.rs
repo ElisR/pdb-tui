@@ -692,7 +692,7 @@ impl State<WindowlessState> {
 
         {
             let data = buffer_slice.get_mapped_range();
-
+            self.inner_state.output_image.clear();
             self.inner_state.output_image.extend_from_slice(&data[..]);
         }
 
