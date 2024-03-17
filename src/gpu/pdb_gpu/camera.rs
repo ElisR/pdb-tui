@@ -105,6 +105,17 @@ impl CameraController {
         }
     }
 
+    /// Reset the camera controller so that nothing is pressed.
+    /// Needed because most terminals can't process release events
+    pub fn reset_velocity(&mut self) {
+        self.is_up_pressed = false;
+        self.is_down_pressed = false;
+        self.is_forward_pressed = false;
+        self.is_left_pressed = false;
+        self.is_backward_pressed = false;
+        self.is_right_pressed = false;
+    }
+
     pub fn update_camera(&self, camera: &mut Camera) {
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();

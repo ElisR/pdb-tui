@@ -1,4 +1,5 @@
 use tracing::error;
+// use tracing::warn;
 use tracing::Level;
 use tracing_subscriber;
 use winit::dpi::PhysicalSize;
@@ -57,6 +58,7 @@ pub fn startup() -> Result<()> {
 }
 
 pub async fn run_new() -> Result<()> {
+    tracing_subscriber::fmt().with_max_level(Level::WARN).init();
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
@@ -86,24 +88,21 @@ pub async fn run_new() -> Result<()> {
             frame.render_widget(widget, frame.size());
         })?;
 
-        if event::poll(std::time::Duration::from_millis(1))? {
-            if let tui_event = event::read()? {
-                let unified_event: UnifiedEvent = (&tui_event).into();
-                if unified_event.keycode == UnifiedKeyCode::Esc {
-                    break;
-                }
+        let tui_event = event::read()?;
+        let unified_event: UnifiedEvent = (&tui_event).into();
+        if unified_event.keycode == UnifiedKeyCode::Esc {
+            break;
+        }
 
-                state.input(&tui_event);
-
-                state.update();
-                match state.render().await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        error!("Something went wrong with rendering.")
-                    }
-                }
+        state.input(&tui_event);
+        state.update();
+        match state.render().await {
+            Ok(_) => {}
+            Err(_) => {
+                error!("Something went wrong with rendering.")
             }
         }
+        state.camera_controller.reset_velocity();
     }
     Ok(())
 }
