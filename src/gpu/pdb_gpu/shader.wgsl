@@ -83,7 +83,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return vec4<f32>(result, object_color.a);
 
     // Encoding intensity information in alpha only for easier TUI debugging
-    let light_strength = ambient_strength + diffuse_strength + specular_strength;
-    return vec4<f32>(object_color.xyz, light_strength);
+    // Capping max to 1.0
+    let light_strength = min(ambient_strength + diffuse_strength + specular_strength, 1.0);
+    return vec4<f32>(object_color.xyz, light_strength - 0.001);
 }
 
