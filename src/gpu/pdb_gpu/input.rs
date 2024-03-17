@@ -6,6 +6,7 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode, WindowEvent};
 
 // TODO Also needs to work with modifiers
 
+#[derive(Debug, Clone, Copy, Hash)]
 pub struct UnifiedEvent {
     pub keycode: UnifiedKeyCode,
     pub kind: UnifiedKeyKind,
