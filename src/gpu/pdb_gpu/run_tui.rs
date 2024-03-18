@@ -8,9 +8,8 @@ use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode};
 use crate::gpu::pdb_gpu::{State, WindowlessState};
 
 use crate::basic_rasterizer::BasicAsciiRasterizer;
-use crate::rasterizer::ColoredPixel;
 use crate::rasterizer::Rasterizer;
-use crate::tui::ui::widget_from_frame_buffer;
+use crate::rasterizer::{ColoredChar, ColoredPixel};
 
 use crossterm::{
     event::{self},
@@ -20,6 +19,12 @@ use crossterm::{
 };
 use ratatui::prelude::{CrosstermBackend, Terminal};
 use std::io::{stdout, Result};
+
+use ratatui::{
+    prelude::{Frame, Rect, Style, Stylize},
+    text::{Line, Span, Text},
+    widgets::{Paragraph, Widget},
+};
 
 pub async fn run() {
     tracing_subscriber::fmt().with_max_level(Level::WARN).init();
@@ -82,9 +87,8 @@ pub async fn run_new() -> Result<()> {
                 .map(ColoredPixel::from)
                 .collect();
             let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            let chars = rasterizer.pixels_to_stdout(pixel_chunks, size as usize);
+            let widget = rasterizer.pixels_to_widget(pixel_chunks, size as usize);
 
-            let widget = widget_from_frame_buffer(&chars);
             frame.render_widget(widget, frame.size());
         })?;
 

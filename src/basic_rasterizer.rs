@@ -1,6 +1,12 @@
 use crate::rasterizer::{ColoredChar, ColoredPixel, Rasterizer, RasterizerError};
 use ratatui::style::Color;
 
+use ratatui::{
+    prelude::Style,
+    text::{Line, Span},
+    widgets::{Paragraph, Widget},
+};
+
 /// Simple rasterizer that assigns one ASCII character per pixel intensity.
 /// Doesn't care about shapes of the pixels.
 #[derive(Clone)]
@@ -54,6 +60,31 @@ impl BasicAsciiRasterizer {
             symbol,
             color: pixel.color,
         }
+    }
+
+    // NOTE The performance benefit of this function may now be worth the hassle
+    // TODO Delete it and go back to the old version unless benchmark show it's worth it
+    pub fn pixels_to_widget(
+        &self,
+        pixels: Vec<&[ColoredPixel]>,
+        render_width: usize,
+    ) -> impl Widget {
+        let lines: Vec<Line> = pixels
+            .chunks(render_width)
+            .rev()
+            .map(|row| {
+                let spans: Vec<Span> = row
+                    .iter()
+                    .map(|chunk| {
+                        let pixel = chunk[0];
+                        let ascii = self.pixel_to_char(pixel);
+                        Span::styled(ascii.symbol.to_string(), Style::default().fg(ascii.color))
+                    })
+                    .collect();
+                Line::default().spans(spans)
+            })
+            .collect();
+        Paragraph::new(lines)
     }
 }
 
