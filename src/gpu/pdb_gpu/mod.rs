@@ -653,7 +653,6 @@ impl State<WindowlessState> {
             );
         }
 
-        let u32_size = std::mem::size_of::<u32>() as u32;
         encoder.copy_texture_to_buffer(
             wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
@@ -665,8 +664,14 @@ impl State<WindowlessState> {
                 buffer: &self.inner_state.output_buffer,
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(u32_size * self.inner_state.size().width),
-                    rows_per_image: Some(self.inner_state.size().height), // NOTE I'm slightly sceptical of these values, based on docstring example. Maybe it infers automaically
+                    // Check that this isn't mean to be 4 `u8`s rather than 1 `u32`
+                    bytes_per_row: Some({
+                        let bytes =
+                            std::mem::size_of::<u32>() as u32 * self.inner_state.size().width;
+                        // Padding to nearest 256.
+                        (bytes + 255) & !255
+                    }),
+                    rows_per_image: None,
                 },
             },
             // TODO Stop redefining the same size
