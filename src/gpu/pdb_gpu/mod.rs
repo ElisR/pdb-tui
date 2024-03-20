@@ -525,21 +525,39 @@ struct WindowlessState {
     size: winit::dpi::PhysicalSize<u32>,
     output_buffer: wgpu::Buffer,
     output_image: Vec<u8>,
+    texture: wgpu::Texture,
 }
 
 impl WindowlessState {
+    const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
+    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+
     pub fn new(size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) -> Self {
-        let u32_size = std::mem::size_of::<u32>() as u32;
-        let output_buffer_size = (u32_size * size.width * size.height) as wgpu::BufferAddress;
+        // TODO Need to add functionality for changing this
+        let output_buffer_size = (Self::U32_SIZE * size.width * size.height) as wgpu::BufferAddress;
         let output_buffer_desc = wgpu::BufferDescriptor {
             size: output_buffer_size,
-            usage: wgpu::BufferUsages::COPY_DST
-                // this tells wpgu that we want to read this buffer from the cpu
-                | wgpu::BufferUsages::MAP_READ,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             label: Some("Windowless Output Buffer"),
             mapped_at_creation: false,
         };
         let output_buffer = device.create_buffer(&output_buffer_desc);
+
+        let texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::FORMAT,
+            view_formats: &[], // NOTE This may be incorrect and needs to be checked
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: Some("Windowless Output Texture"),
+        };
+        let texture = device.create_texture(&texture_desc);
 
         // Multiply by 4 because RGBA
         let output_image_size = size.width as usize * size.height as usize * 4;
@@ -548,6 +566,7 @@ impl WindowlessState {
             size,
             output_buffer,
             output_image,
+            texture,
         }
     }
 }
@@ -586,22 +605,10 @@ impl State<WindowlessState> {
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let texture_desc = wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: self.inner_state.size().width,
-                height: self.inner_state.size().height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: self.inner_state.format(),
-            view_formats: &[], // NOTE This may be incorrect and needs to be checked
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            label: Some("Windowless Output Texture"),
-        };
-        let texture = self.device.create_texture(&texture_desc);
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let texture_view = self
+            .inner_state
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self
             .device
@@ -656,7 +663,7 @@ impl State<WindowlessState> {
         encoder.copy_texture_to_buffer(
             wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
-                texture: &texture,
+                texture: &self.inner_state.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
@@ -666,8 +673,7 @@ impl State<WindowlessState> {
                     offset: 0,
                     // Check that this isn't mean to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
-                        let bytes =
-                            std::mem::size_of::<u32>() as u32 * self.inner_state.size().width;
+                        let bytes = WindowlessState::U32_SIZE * self.inner_state.size().width;
                         // Padding to nearest 256.
                         (bytes + 255) & !255
                     }),
