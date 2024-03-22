@@ -1,5 +1,6 @@
 use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode, UnifiedKeyKind};
 
+#[derive(Debug)]
 pub struct Camera {
     pub eye: nalgebra::Point3<f32>,
     pub target: nalgebra::Point3<f32>,
@@ -21,7 +22,7 @@ impl Camera {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct CameraUniform {
     pub view_position: [f32; 4],
     pub view_proj: [[f32; 4]; 4],
@@ -51,6 +52,7 @@ impl Default for CameraUniform {
     }
 }
 
+#[derive(Debug)]
 pub struct CameraController {
     pub speed: f32,
     pub is_up_pressed: bool,

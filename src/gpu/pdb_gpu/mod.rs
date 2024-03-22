@@ -96,6 +96,7 @@ pub trait InnerState {
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device);
 }
 
+#[derive(Debug)]
 struct WindowedState {
     window: Window,
     surface: wgpu::Surface,
@@ -152,6 +153,7 @@ impl InnerState for WindowedState {
     }
 }
 
+#[derive(Debug)]
 struct State<IS: InnerState> {
     inner_state: IS,
     device: wgpu::Device,
@@ -521,6 +523,7 @@ impl State<WindowedState> {
     }
 }
 
+#[derive(Debug)]
 struct WindowlessState {
     size: winit::dpi::PhysicalSize<u32>,
     output_buffer: wgpu::Buffer,
