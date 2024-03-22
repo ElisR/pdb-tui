@@ -69,12 +69,9 @@ pub async fn run_new() -> Result<()> {
 
     let rasterizer = BasicAsciiRasterizer::default();
 
-    let size = 256u32;
-    let mut state = State::<WindowlessState>::new(PhysicalSize {
-        width: size,
-        height: size,
-    })
-    .await;
+    let width = 418u32;
+    let height = 111u32;
+    let mut state = State::<WindowlessState>::new(PhysicalSize { width, height }).await;
 
     // TODO Make all of this async
     loop {
@@ -87,7 +84,7 @@ pub async fn run_new() -> Result<()> {
                 .map(ColoredPixel::from)
                 .collect();
             let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            let widget = rasterizer.pixels_to_widget(pixel_chunks, size as usize);
+            let widget = rasterizer.pixels_to_widget(pixel_chunks, width as usize);
 
             frame.render_widget(widget, frame.size());
         })?;
