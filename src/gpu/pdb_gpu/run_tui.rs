@@ -95,7 +95,7 @@ pub async fn run_new() -> Result<()> {
             break;
         }
 
-        state.input(&tui_event);
+        state.input(unified_event);
         state.update();
         match state.render().await {
             Ok(_) => {}
