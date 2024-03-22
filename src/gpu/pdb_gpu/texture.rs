@@ -1,6 +1,7 @@
 //! Adapted Tutorial 10
 // use std::num::NonZeroU32;
 
+#[derive(Debug)]
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,

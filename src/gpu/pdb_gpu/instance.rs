@@ -1,5 +1,6 @@
 use crate::gpu::pdb_gpu::model::Vertex;
 
+#[derive(Debug)]
 pub struct Instance {
     pub position: nalgebra::Vector3<f32>,
     pub rotation: nalgebra::Rotation3<f32>,
