@@ -20,6 +20,8 @@ use camera::{Camera, CameraController, CameraUniform};
 use instance::{Instance, InstanceRaw, LightUniform};
 use model::{DrawLight, DrawModel, Vertex};
 
+use crate::gpu::pdb_gpu::input::UnifiedEvent;
+
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
@@ -431,6 +433,9 @@ impl<IS: InnerState> State<IS> {
 
         (adapter, device, queue)
     }
+    fn input(&mut self, event: UnifiedEvent) -> bool {
+        self.camera_controller.process_events(event)
+    }
 }
 
 impl State<WindowedState> {
@@ -452,9 +457,6 @@ impl State<WindowedState> {
             Self::create_adapter_device_queue(Some(&surface), &instance).await;
         let inner_state = WindowedState::new(window, surface, size, &adapter, &device);
         Self::new_from_inner_state(inner_state, device, queue).await
-    }
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event.into())
     }
     pub fn window(&self) -> &Window {
         &self.inner_state.window
@@ -644,12 +646,6 @@ impl State<WindowlessState> {
         let inner_state = WindowlessState::new(size, &device);
         Self::new_from_inner_state(inner_state, device, queue).await
     }
-
-    // TODO See if a generic function operating on `Into<UnifiedEvent>` can work here.
-    fn input(&mut self, event: &Event) -> bool {
-        self.camera_controller.process_events(event.into())
-    }
-
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
