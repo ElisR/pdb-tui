@@ -5,7 +5,7 @@ use tracing_subscriber;
 use winit::dpi::PhysicalSize;
 
 use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode};
-use crate::gpu::pdb_gpu::{State, WindowlessState};
+use crate::gpu::pdb_gpu::{InnerState, State, WindowlessState};
 
 use crate::basic_rasterizer::BasicAsciiRasterizer;
 use crate::rasterizer::Rasterizer;
@@ -69,13 +69,27 @@ pub async fn run_new() -> Result<()> {
 
     let rasterizer = BasicAsciiRasterizer::default();
 
-    let width = 418u32;
-    let height = 111u32;
+    let width = terminal.size()?.width as u32;
+    let height = terminal.size()?.height as u32;
     let mut state = State::<WindowlessState>::new(PhysicalSize { width, height }).await;
+    // Render the first frame to avoid blank screen upon loading
+    if (state.render().await).is_err() {
+        error!("Something went wrong with rendering.")
+    }
 
     // TODO Make all of this async
     loop {
         terminal.draw(|frame| {
+            let frame_width = frame.size().width as u32;
+            let frame_height = frame.size().height as u32;
+            if frame_width != state.inner_state.size().width
+                || frame_height != state.inner_state.size().height
+            {
+                state.resize(PhysicalSize {
+                    width: frame_width,
+                    height: frame_height,
+                });
+            }
             let pixels: Vec<_> = state
                 .inner_state
                 .output_image
@@ -84,7 +98,8 @@ pub async fn run_new() -> Result<()> {
                 .map(ColoredPixel::from)
                 .collect();
             let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            let widget = rasterizer.pixels_to_widget(pixel_chunks, width as usize);
+            let widget =
+                rasterizer.pixels_to_widget(pixel_chunks, state.inner_state.size().width as usize);
 
             frame.render_widget(widget, frame.size());
         })?;
