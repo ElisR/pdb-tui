@@ -644,7 +644,12 @@ impl State<WindowlessState> {
 
         let (_adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
         let inner_state = WindowlessState::new(size, &device);
-        Self::new_from_inner_state(inner_state, device, queue).await
+        let mut state = Self::new_from_inner_state(inner_state, device, queue).await;
+
+        // Accounting for the fact that font height is roughly twice the width
+        state.camera.aspect /= 2.0;
+        state.update();
+        state
     }
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
