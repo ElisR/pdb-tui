@@ -41,7 +41,7 @@ impl From<u8> for ColoredPixel {
     fn from(value: u8) -> Self {
         Self {
             intensity: value as f32 / std::u8::MAX as f32,
-            color: Color::Black,
+            color: Color::Red,
         }
     }
 }
