@@ -532,9 +532,20 @@ impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
     const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
+    // Take a number of bytes and return the next closest multiple of 256
+    pub fn pad_bytes_to_256(bytes: u32) -> u32 {
+        (bytes + 255) & !255
+    }
+
+    // Pad width to 64 since each pixel requires 4 bytes
+    pub fn pad_width_to_64(width: u32) -> u32 {
+        (width + 63) & !63
+    }
+
     pub fn new(size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) -> Self {
         // TODO Need to add functionality for changing this
-        let output_buffer_size = (Self::U32_SIZE * size.width * size.height) as wgpu::BufferAddress;
+        let output_buffer_size = (Self::U32_SIZE * Self::pad_width_to_64(size.width) * size.height)
+            as wgpu::BufferAddress;
         let output_buffer_desc = wgpu::BufferDescriptor {
             size: output_buffer_size,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -578,8 +589,42 @@ impl InnerState for WindowlessState {
     fn format(&self) -> wgpu::TextureFormat {
         wgpu::TextureFormat::Rgba8UnormSrgb
     }
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, _device: &wgpu::Device) {
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
         self.size = new_size;
+
+        self.output_buffer.destroy();
+        self.texture.destroy();
+
+        // TODO Find a solution without repeating so much code
+        let output_buffer_size = (Self::U32_SIZE
+            * Self::pad_width_to_64(self.size.width)
+            * self.size.height) as wgpu::BufferAddress;
+        let output_buffer_desc = wgpu::BufferDescriptor {
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            label: Some("Windowless Output Buffer"),
+            mapped_at_creation: false,
+        };
+        self.output_buffer = device.create_buffer(&output_buffer_desc);
+
+        // TODO Also recreate the texture
+        let texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: self.size.width,
+                height: self.size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::FORMAT,
+            view_formats: &[], // NOTE This may be incorrect and needs to be checked
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: Some("Windowless Output Texture"),
+        };
+        self.texture = device.create_texture(&texture_desc);
+
+        // TODO Work out logic for new offset
     }
 }
 
@@ -674,10 +719,9 @@ impl State<WindowlessState> {
                     // Check that this isn't mean to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
                         let bytes = WindowlessState::U32_SIZE * self.inner_state.size().width;
-                        // Padding to nearest 256.
-                        (bytes + 255) & !255
+                        WindowlessState::pad_bytes_to_256(bytes)
                     }),
-                    rows_per_image: None,
+                    rows_per_image: Some(self.inner_state.size().height),
                 },
             },
             // TODO Stop redefining the same size
@@ -709,14 +753,28 @@ impl State<WindowlessState> {
 
         self.inner_state.output_buffer.unmap();
 
-        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-            self.inner_state.size().width,
-            self.inner_state.size().height,
-            &self.inner_state.output_image[..],
-        )
-        .unwrap();
-        buffer.save("from_inner_state.png").unwrap();
+        self.inner_state.output_image = self
+            .inner_state
+            .output_image
+            .chunks(
+                WindowlessState::U32_SIZE as usize
+                    * WindowlessState::pad_width_to_64(self.inner_state.size().width) as usize,
+            )
+            .flat_map(|row| {
+                row.iter().take(
+                    WindowlessState::U32_SIZE as usize * self.inner_state.size().width as usize,
+                )
+            })
+            .cloned()
+            .collect();
 
+        // let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+        //     self.inner_state.size().width,
+        //     self.inner_state.size().height,
+        //     &self.inner_state.output_image[..],
+        // )
+        // .unwrap();
+        // buffer.save("from_inner_state.png").unwrap();
         Ok(())
     }
 }
