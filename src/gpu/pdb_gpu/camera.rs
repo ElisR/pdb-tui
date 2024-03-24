@@ -55,6 +55,7 @@ impl Default for CameraUniform {
 #[derive(Debug)]
 pub struct CameraController {
     pub speed: f32,
+    pub angular_speed: f32,
     pub is_up_pressed: bool,
     pub is_down_pressed: bool,
     pub is_forward_pressed: bool,
@@ -64,9 +65,10 @@ pub struct CameraController {
 }
 
 impl CameraController {
-    pub fn new(speed: f32) -> Self {
+    pub fn new(speed: f32, angular_speed: f32) -> Self {
         Self {
             speed,
+            angular_speed,
             is_up_pressed: false,
             is_down_pressed: false,
             is_forward_pressed: false,
@@ -79,28 +81,28 @@ impl CameraController {
     pub fn process_events(&mut self, event: UnifiedEvent) -> bool {
         let is_pressed = event.kind == UnifiedKeyKind::Press;
         match event.keycode {
-            UnifiedKeyCode::Space => {
+            UnifiedKeyCode::K | UnifiedKeyCode::Up => {
                 self.is_up_pressed = is_pressed;
-                true
-            }
-            UnifiedKeyCode::Shift => {
-                self.is_down_pressed = is_pressed;
-                true
-            }
-            UnifiedKeyCode::U | UnifiedKeyCode::K | UnifiedKeyCode::Up => {
-                self.is_forward_pressed = is_pressed;
                 true
             }
             UnifiedKeyCode::H | UnifiedKeyCode::Left => {
                 self.is_left_pressed = is_pressed;
                 true
             }
-            UnifiedKeyCode::D | UnifiedKeyCode::J | UnifiedKeyCode::Down => {
-                self.is_backward_pressed = is_pressed;
+            UnifiedKeyCode::J | UnifiedKeyCode::Down => {
+                self.is_down_pressed = is_pressed;
                 true
             }
             UnifiedKeyCode::L | UnifiedKeyCode::Right => {
                 self.is_right_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::U => {
+                self.is_forward_pressed = is_pressed;
+                true
+            }
+            UnifiedKeyCode::D => {
+                self.is_backward_pressed = is_pressed;
                 true
             }
             _ => false,
@@ -134,18 +136,31 @@ impl CameraController {
 
         let right = forward_norm.cross(&camera.up);
 
-        // Redo radius calc in case the up/ down is pressed.
+        // Redo radius calc in case the forward/backward is pressed.
         let forward = camera.target - camera.eye;
+        let forward_norm = forward.normalize();
         let forward_mag = forward.magnitude();
 
+        let up = right.cross(&forward_norm).normalize();
+        camera.up = up;
+
         if self.is_right_pressed {
-            // Rescale the distance between the target and eye so
-            // that it doesn't change. The eye therefore still
-            // lies on the circle made by the target and eye.
-            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
+            camera.eye = camera.target
+                - (forward + right * forward_mag * self.angular_speed).normalize() * forward_mag;
         }
         if self.is_left_pressed {
-            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
+            camera.eye = camera.target
+                - (forward - right * forward_mag * self.angular_speed).normalize() * forward_mag;
+        }
+        if self.is_up_pressed {
+            camera.eye = camera.target
+                - (forward - camera.up * forward_mag * self.angular_speed).normalize()
+                    * forward_mag;
+        }
+        if self.is_down_pressed {
+            camera.eye = camera.target
+                - (forward + camera.up * forward_mag * self.angular_speed).normalize()
+                    * forward_mag;
         }
     }
 }
