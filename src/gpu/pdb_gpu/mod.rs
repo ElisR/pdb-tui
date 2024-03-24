@@ -193,7 +193,7 @@ impl<IS: InnerState> State<IS> {
             zfar: 1000.0,
         };
 
-        let camera_controller = CameraController::new(2.0);
+        let camera_controller = CameraController::new(2.0, 0.15);
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);

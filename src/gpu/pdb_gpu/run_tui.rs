@@ -72,6 +72,7 @@ pub async fn run_new() -> Result<()> {
     let width = terminal.size()?.width as u32;
     let height = terminal.size()?.height as u32;
     let mut state = State::<WindowlessState>::new(PhysicalSize { width, height }).await;
+    state.camera_controller.speed *= 3.0;
     // Render the first frame to avoid blank screen upon loading
     if (state.render().await).is_err() {
         error!("Something went wrong with rendering.")
