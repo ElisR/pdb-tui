@@ -14,22 +14,27 @@ Rendering proteins in the terminal with Rust
 - [ ] Load to CoM of each PDB file, rather than CoM of entire scene
 - [ ] Make scene `znear` and `zfar` sensitive to size of object.
 - [ ] Use a macro to define the help screen from the function which decides the next action.
+- [ ] Deprecate old CPU-based rendering code and move it to less visible location.
 
 
 
 ## Specific GPU Priorities
 
-- [x] Swap back to `nalgebra`
-- [x] Create common wrapper struct around next actions.
-- [x] Integrate basic TUI into new GPU-accelerated code.
-- [ ] Make buffer work when not aligned to 256.
+- [x] Account for non-square characters during rendering.
+- [x] Make camera use angular velocity rather than velocity.
+
+- [ ] Allow for grid-sizes of bigger than 1x1.
+- [ ] Fix buffer sizes for images.
+
 - [ ] Add a trivial compute shader to the pipeline right at the end. Start off with just subsampling.
-- [ ] Write a benchmarking script.
-- [ ] Look for performance improvements in `ratatui` components.
+
 - [ ] Add colour back in.
 - [ ] Refactor structure.
 - [ ] Bring back convenience of loading `.obj` files from the command line.
 
+- [ ] Write a benchmarking script.
+- [ ] Look for performance improvements in `ratatui` components.
+- [ ] Swap to different mechanism for event handling - hopefully fixing window resize events not being registered until next input.
 
 ### Internal Notes
 
