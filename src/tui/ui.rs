@@ -1,6 +1,7 @@
 //! Code for rendering UI elements and reacting to user input.
 
 #![allow(dead_code)]
+#[allow(unused_imports)]
 use crate::{
     basic_rasterizer::BasicAsciiRasterizer,
     fancy_rasterizer::FancyAsciiRasterizer,
@@ -22,6 +23,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+#[allow(unused_imports)]
 use parry3d::{
     query::RayCast,
     shape::{Compound, TriMesh},
