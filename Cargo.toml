@@ -36,10 +36,6 @@ bytemuck = { version = "1.12", features = [ "derive" ] }
 flume = "0.11.0"
 
 [[bin]]
-name = "mine"
-path = "src/gpu/mine/main.rs"
-
-[[bin]]
 name = "pdb_gpu"
 path = "src/gpu/pdb_gpu/main_windowed.rs"
 
