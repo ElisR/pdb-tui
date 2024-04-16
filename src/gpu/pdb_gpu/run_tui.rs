@@ -8,8 +8,7 @@ use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode};
 use crate::gpu::pdb_gpu::{InnerState, State, WindowlessState};
 
 use crate::basic_rasterizer::BasicAsciiRasterizer;
-use crate::rasterizer::Rasterizer;
-use crate::rasterizer::{ColoredChar, ColoredPixel};
+use crate::rasterizer::ColoredPixel;
 
 use crossterm::{
     event::{self},
@@ -19,12 +18,6 @@ use crossterm::{
 };
 use ratatui::prelude::{CrosstermBackend, Terminal};
 use std::io::{stdout, Result};
-
-use ratatui::{
-    prelude::{Frame, Rect, Style, Stylize},
-    text::{Line, Span, Text},
-    widgets::{Paragraph, Widget},
-};
 
 pub async fn run() {
     tracing_subscriber::fmt().with_max_level(Level::WARN).init();
@@ -73,14 +66,16 @@ pub async fn run_new() -> Result<()> {
     let height = terminal.size()?.height as u32;
     let mut state = State::<WindowlessState>::new(PhysicalSize { width, height }).await;
     state.camera_controller.speed *= 3.0;
+    // state.camera_controller.speed /= 10.0;
+
     // Render the first frame to avoid blank screen upon loading
     if (state.render().await).is_err() {
         error!("Something went wrong with rendering.")
     }
 
-    // TODO Make all of this async
     loop {
         terminal.draw(|frame| {
+            // TODO Fix the problems arising with this resize. Maybe because of await?
             let frame_width = frame.size().width as u32;
             let frame_height = frame.size().height as u32;
             if frame_width != state.inner_state.size().width
@@ -91,6 +86,7 @@ pub async fn run_new() -> Result<()> {
                     height: frame_height,
                 });
             }
+
             let pixels: Vec<_> = state
                 .inner_state
                 .output_image
@@ -110,6 +106,8 @@ pub async fn run_new() -> Result<()> {
         if unified_event.keycode == UnifiedKeyCode::Esc {
             break;
         }
+
+        // TODO Add logic to compare current size of frame
 
         state.input(unified_event);
         state.update();
