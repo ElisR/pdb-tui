@@ -2,10 +2,10 @@
 
 use std::iter;
 
-use crossterm::event::Event;
-use image::{ImageBuffer, Rgba};
+// use image::{ImageBuffer, Rgba};
+// use tracing::warn;
 use wgpu::util::DeviceExt;
-use winit::{dpi::PhysicalSize, event::*, window::Window};
+use winit::{dpi::PhysicalSize, window::Window};
 
 pub mod camera;
 pub mod input;
@@ -578,6 +578,7 @@ impl WindowlessState {
         // Multiply by 4 because RGBA
         let output_image_size = size.width as usize * size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
+
         Self {
             size,
             output_buffer,
@@ -772,13 +773,18 @@ impl State<WindowlessState> {
             .cloned()
             .collect();
 
+        // TODO Fix the strangely sized buffer
+        // let now = chrono::Utc::now();
+        // let now_string = now.format("%H:%M:%S").to_string();
+        // let path = format!("From_inner_state_{}.png", now_string);
         // let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-        //     self.inner_state.size().width,
+        //     WindowlessState::pad_width_to_64(self.inner_state.size().width),
         //     self.inner_state.size().height,
         //     &self.inner_state.output_image[..],
         // )
         // .unwrap();
-        // buffer.save("from_inner_state.png").unwrap();
+        // buffer.save(path).unwrap();
+
         Ok(())
     }
 }
