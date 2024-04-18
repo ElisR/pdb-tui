@@ -23,6 +23,8 @@ Rendering proteins in the terminal with Rust
 - [x] Account for non-square characters during rendering.
 - [x] Make camera use angular velocity rather than velocity.
 
+- [x] Split up `mod` into smaller components.
+
 - [ ] Allow for grid-sizes of bigger than 1x1.
 - [ ] Fix buffer sizes for images.
 
