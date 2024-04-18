@@ -165,7 +165,7 @@ mod tests {
             state: KeyEventState::empty(),
         });
 
-        assert!(is_space(space_event.into()));
+        assert!(is_space((&space_event).into()));
 
         let random_event = Event::Key(KeyEvent {
             code: KeyCode::Char('q'),
@@ -173,6 +173,6 @@ mod tests {
             kind: KeyEventKind::Press,
             state: KeyEventState::empty(),
         });
-        assert!(!is_space(random_event.into()));
+        assert!(!is_space((&random_event).into()));
     }
 }
