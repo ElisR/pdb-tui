@@ -21,7 +21,8 @@ Cargo.lock
 
 # Data
 *.png
-data/FiraCode-Regular.ttf
+# data/FiraCode-Regular.ttf
+!src/gpu/mine/happy-tree.png
 
 # WGPU Tutorials
 # src/gpu/tutorial*
