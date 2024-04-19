@@ -1,8 +1,9 @@
+use image::{ImageBuffer, Rgba};
 use std::iter;
+use winit::dpi::PhysicalSize;
 
 use crate::gpu::pdb_gpu::model::{DrawLight, DrawModel};
 use crate::gpu::pdb_gpu::{InnerState, State};
-use winit::dpi::PhysicalSize;
 
 #[derive(Debug)]
 pub struct WindowlessState {
@@ -200,7 +201,7 @@ impl State<WindowlessState> {
                 buffer: &self.inner_state.output_buffer,
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    // Check that this isn't mean to be 4 `u8`s rather than 1 `u32`
+                    // Check that this isn't meant to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
                         let bytes = WindowlessState::U32_SIZE * self.inner_state.size().width;
                         WindowlessState::pad_bytes_to_256(bytes)
@@ -252,18 +253,22 @@ impl State<WindowlessState> {
             .cloned()
             .collect();
 
-        // TODO Fix the strangely sized buffer
-        // let now = chrono::Utc::now();
-        // let now_string = now.format("%H:%M:%S").to_string();
-        // let path = format!("From_inner_state_{}.png", now_string);
-        // let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-        //     WindowlessState::pad_width_to_64(self.inner_state.size().width),
-        //     self.inner_state.size().height,
-        //     &self.inner_state.output_image[..],
-        // )
-        // .unwrap();
-        // buffer.save(path).unwrap();
-
         Ok(())
+    }
+
+    // TODO This is currently failing if run - fix it
+    #[allow(dead_code)]
+    pub fn save_screenshot(&self) {
+        // TODO Fix the strangely sized buffer
+        let now = chrono::Utc::now();
+        let now_string = now.format("%H:%M:%S").to_string();
+        let path = format!("from_inner_state_{}.png", now_string);
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            WindowlessState::pad_width_to_64(self.inner_state.size().width),
+            self.inner_state.size().height,
+            &self.inner_state.output_image[..],
+        )
+        .unwrap();
+        buffer.save(path).unwrap();
     }
 }
