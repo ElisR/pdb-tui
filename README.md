@@ -4,7 +4,7 @@ Rendering proteins in the terminal with Rust
 
 ## TODO Priorities
 
-- [ ] Swap to `wgpu` for rendering
+- [x] Swap to `wgpu` for rendering
 
 - [ ] Choose a simpler enum representation for colours
 - [ ] Load obj or PDB depending on filetype
@@ -20,16 +20,12 @@ Rendering proteins in the terminal with Rust
 
 ## Specific GPU Priorities
 
-- [x] Account for non-square characters during rendering.
-- [x] Make camera use angular velocity rather than velocity.
-
-- [x] Split up `mod` into smaller components.
+- [ ] Add a trivial compute shader to the pipeline right at the end. Start off with just subsampling.
+  - Might have to implement differently for TUI and windowed modes.
 
 - [ ] Allow for grid-sizes of bigger than 1x1.
-- [ ] Fix buffer sizes for images.
 
-- [ ] Add a trivial compute shader to the pipeline right at the end. Start off with just subsampling.
-
+- [ ] Fix buffer sizes for images in `save_screenshot`.
 - [ ] Add colour back in.
 - [ ] Refactor structure.
 - [ ] Bring back convenience of loading `.obj` files from the command line.
