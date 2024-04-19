@@ -1,6 +1,5 @@
 //! Adapted Tutorial 10
 
-// use image::{ImageBuffer, Rgba};
 // use tracing::warn;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
