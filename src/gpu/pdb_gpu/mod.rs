@@ -92,7 +92,9 @@ fn create_render_pipeline(
 }
 
 pub trait InnerState {
-    fn size(&self) -> PhysicalSize<u32>;
+    fn render_size(&self) -> PhysicalSize<u32>;
+    /// Function needed because with subsampling rasterizers, the internal render size may be larger than output size
+    fn output_size(&self) -> PhysicalSize<u32>;
     fn format(&self) -> wgpu::TextureFormat;
     fn resize(&mut self, new_size: PhysicalSize<u32>, device: &wgpu::Device);
 }
@@ -129,7 +131,8 @@ impl<IS: InnerState> State<IS> {
             eye: nalgebra::Point3::new(50.0, 5.0, -10.0),
             target: nalgebra::Point3::origin(),
             up: nalgebra::Vector3::y(),
-            aspect: inner_state.size().width as f32 / inner_state.size().height as f32,
+            aspect: inner_state.render_size().width as f32
+                / inner_state.render_size().height as f32,
             fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 1000.0,
@@ -243,8 +246,8 @@ impl<IS: InnerState> State<IS> {
 
         let depth_texture = texture::Texture::create_depth_texture(
             &device,
-            inner_state.size().width,
-            inner_state.size().height,
+            inner_state.render_size().width,
+            inner_state.render_size().height,
             "depth_texture",
         );
 
@@ -313,12 +316,12 @@ impl<IS: InnerState> State<IS> {
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.inner_state.resize(new_size, &self.device);
-            self.camera.aspect =
-                self.inner_state.size().width as f32 / self.inner_state.size().height as f32;
+            self.camera.aspect = self.inner_state.render_size().width as f32
+                / self.inner_state.render_size().height as f32;
             self.depth_texture = texture::Texture::create_depth_texture(
                 &self.device,
-                self.inner_state.size().width,
-                self.inner_state.size().height,
+                self.inner_state.render_size().width,
+                self.inner_state.render_size().height,
                 "depth_texture",
             );
         }

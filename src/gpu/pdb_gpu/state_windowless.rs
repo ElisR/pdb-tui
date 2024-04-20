@@ -7,7 +7,8 @@ use crate::gpu::pdb_gpu::{InnerState, State};
 
 #[derive(Debug)]
 pub struct WindowlessState {
-    pub size: winit::dpi::PhysicalSize<u32>,
+    pub output_size: winit::dpi::PhysicalSize<u32>,
+    pub grid_size: winit::dpi::PhysicalSize<u32>,
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
     pub texture: wgpu::Texture,
@@ -15,6 +16,7 @@ pub struct WindowlessState {
     pub view: wgpu::TextureView,
     pub intermediate_view: wgpu::TextureView,
     pub compute_bind_group: wgpu::BindGroup,
+    pub compute_bind_group_layout: wgpu::BindGroupLayout,
     pub compute_pipeline: wgpu::ComputePipeline,
 }
 
@@ -32,10 +34,15 @@ impl WindowlessState {
         (width + 63) & !63
     }
 
-    pub fn new(size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) -> Self {
+    pub fn new(
+        output_size: PhysicalSize<u32>,
+        grid_size: PhysicalSize<u32>,
+        device: &wgpu::Device,
+    ) -> Self {
         // TODO Need to add functionality for changing this
-        let output_buffer_size = (Self::U32_SIZE * Self::pad_width_to_64(size.width) * size.height)
-            as wgpu::BufferAddress;
+        let output_buffer_size = (Self::U32_SIZE
+            * Self::pad_width_to_64(output_size.width)
+            * output_size.height) as wgpu::BufferAddress;
         let output_buffer_desc = wgpu::BufferDescriptor {
             size: output_buffer_size,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -46,8 +53,8 @@ impl WindowlessState {
 
         let intermediate_texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: size.width,
-                height: size.height,
+                width: output_size.width * grid_size.width,
+                height: output_size.height * grid_size.height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -64,8 +71,8 @@ impl WindowlessState {
 
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: size.width,
-                height: size.height,
+                width: output_size.width,
+                height: output_size.height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -80,7 +87,7 @@ impl WindowlessState {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Multiply by 4 because RGBA
-        let output_image_size = size.width as usize * size.height as usize * 4;
+        let output_image_size = output_size.width as usize * output_size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
         let compute_bind_group_layout =
@@ -107,11 +114,11 @@ impl WindowlessState {
                         count: None,
                     },
                 ],
-                label: Some("Compute binding group layout."),
+                label: Some("Compute Bing Group Layout"),
             });
 
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bing Group"),
+            label: Some("Compute Bind Group"),
             layout: &compute_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -143,7 +150,8 @@ impl WindowlessState {
         });
 
         Self {
-            size,
+            output_size,
+            grid_size,
             output_buffer,
             output_image,
             texture,
@@ -151,28 +159,36 @@ impl WindowlessState {
             view,
             intermediate_view,
             compute_bind_group,
+            compute_bind_group_layout,
             compute_pipeline,
         }
     }
 }
 
 impl InnerState for WindowlessState {
-    fn size(&self) -> winit::dpi::PhysicalSize<u32> {
-        self.size
+    fn render_size(&self) -> PhysicalSize<u32> {
+        self.output_size
+    }
+    fn output_size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.output_size.width * self.grid_size.width,
+            height: self.output_size.height * self.grid_size.height,
+        }
     }
     fn format(&self) -> wgpu::TextureFormat {
         Self::FORMAT
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
-        self.size = new_size;
+        self.output_size = new_size;
 
         self.output_buffer.destroy();
         self.texture.destroy();
+        // self.intermediate_texture.destroy();
 
         // TODO Find a solution without repeating so much code
         let output_buffer_size = (Self::U32_SIZE
-            * Self::pad_width_to_64(self.size.width)
-            * self.size.height) as wgpu::BufferAddress;
+            * Self::pad_width_to_64(self.output_size.width)
+            * self.output_size.height) as wgpu::BufferAddress;
         let output_buffer_desc = wgpu::BufferDescriptor {
             size: output_buffer_size,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -183,8 +199,8 @@ impl InnerState for WindowlessState {
 
         let intermediate_texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: self.size.width,
-                height: self.size.height,
+                width: self.output_size.width * self.grid_size.width,
+                height: self.output_size.height * self.grid_size.height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -197,14 +213,29 @@ impl InnerState for WindowlessState {
         };
         self.intermediate_texture = device.create_texture(&intermediate_texture_desc);
         self.intermediate_view = self
-            .texture
+            .intermediate_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // TODO Also recreate the texture
+        // TODO Move bind group creation to separate function
+        self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bing Group"),
+            layout: &self.compute_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&self.intermediate_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&self.view),
+                },
+            ],
+        });
+
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: self.size.width,
-                height: self.size.height,
+                width: self.output_size.width,
+                height: self.output_size.height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -225,7 +256,7 @@ impl InnerState for WindowlessState {
 }
 
 impl State<WindowlessState> {
-    pub async fn new(size: PhysicalSize<u32>) -> Self {
+    pub async fn new(output_size: PhysicalSize<u32>, grid_size: PhysicalSize<u32>) -> Self {
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -234,7 +265,7 @@ impl State<WindowlessState> {
         });
 
         let (_adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
-        let inner_state = WindowlessState::new(size, &device);
+        let inner_state = WindowlessState::new(output_size, grid_size, &device);
         let mut state = Self::new_from_inner_state(inner_state, device, queue).await;
 
         // Accounting for the fact that font height is roughly twice the width
@@ -306,8 +337,8 @@ impl State<WindowlessState> {
             compute_pass.set_bind_group(0, &self.inner_state.compute_bind_group, &[]);
             compute_pass.set_pipeline(&self.inner_state.compute_pipeline);
             compute_pass.dispatch_workgroups(
-                self.inner_state.size.width,
-                self.inner_state.size.height,
+                self.inner_state.output_size.width,
+                self.inner_state.output_size.height,
                 1,
             )
         }
@@ -325,16 +356,17 @@ impl State<WindowlessState> {
                     offset: 0,
                     // Check that this isn't meant to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
-                        let bytes = WindowlessState::U32_SIZE * self.inner_state.size().width;
+                        let bytes =
+                            WindowlessState::U32_SIZE * self.inner_state.render_size().width;
                         WindowlessState::pad_bytes_to_256(bytes)
                     }),
-                    rows_per_image: Some(self.inner_state.size().height),
+                    rows_per_image: Some(self.inner_state.render_size().height),
                 },
             },
             // TODO Stop redefining the same size
             wgpu::Extent3d {
-                width: self.inner_state.size().width,
-                height: self.inner_state.size().height,
+                width: self.inner_state.render_size().width,
+                height: self.inner_state.render_size().height,
                 depth_or_array_layers: 1,
             },
         );
@@ -365,11 +397,13 @@ impl State<WindowlessState> {
             .output_image
             .chunks(
                 WindowlessState::U32_SIZE as usize
-                    * WindowlessState::pad_width_to_64(self.inner_state.size().width) as usize,
+                    * WindowlessState::pad_width_to_64(self.inner_state.render_size().width)
+                        as usize,
             )
             .flat_map(|row| {
                 row.iter().take(
-                    WindowlessState::U32_SIZE as usize * self.inner_state.size().width as usize,
+                    WindowlessState::U32_SIZE as usize
+                        * self.inner_state.render_size().width as usize,
                 )
             })
             .cloned()
@@ -386,8 +420,8 @@ impl State<WindowlessState> {
         let now_string = now.format("%H:%M:%S").to_string();
         let path = format!("from_inner_state_{}.png", now_string);
         let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-            WindowlessState::pad_width_to_64(self.inner_state.size().width),
-            self.inner_state.size().height,
+            WindowlessState::pad_width_to_64(self.inner_state.render_size().width),
+            self.inner_state.render_size().height,
             &self.inner_state.output_image[..],
         )
         .unwrap();
