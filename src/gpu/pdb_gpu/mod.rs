@@ -365,7 +365,7 @@ impl<IS: InnerState> State<IS> {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("Main Device"),
-                    features: wgpu::Features::empty(),
+                    features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                     limits: wgpu::Limits::default(),
                 },
                 None,
