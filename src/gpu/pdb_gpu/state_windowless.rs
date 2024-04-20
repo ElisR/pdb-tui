@@ -183,7 +183,7 @@ impl InnerState for WindowlessState {
 
         self.output_buffer.destroy();
         self.texture.destroy();
-        // self.intermediate_texture.destroy();
+        self.intermediate_texture.destroy();
 
         // TODO Find a solution without repeating so much code
         let output_buffer_size = (Self::U32_SIZE
@@ -216,22 +216,6 @@ impl InnerState for WindowlessState {
             .intermediate_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // TODO Move bind group creation to separate function
-        self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bing Group"),
-            layout: &self.compute_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&self.intermediate_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&self.view),
-                },
-            ],
-        });
-
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: self.output_size.width,
@@ -250,6 +234,22 @@ impl InnerState for WindowlessState {
         self.view = self
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // TODO Move bind group creation to separate function
+        self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bing Group"),
+            layout: &self.compute_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&self.intermediate_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&self.view),
+                },
+            ],
+        });
 
         // TODO Work out logic for new offset
     }
