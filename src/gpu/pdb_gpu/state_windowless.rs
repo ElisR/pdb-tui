@@ -11,12 +11,16 @@ pub struct WindowlessState {
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
     pub texture: wgpu::Texture,
+    pub intermediate_texture: wgpu::Texture,
     pub view: wgpu::TextureView,
+    pub intermediate_view: wgpu::TextureView,
+    pub compute_bind_group: wgpu::BindGroup,
+    pub compute_pipeline: wgpu::ComputePipeline,
 }
 
 impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
-    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
     // Take a number of bytes and return the next closest multiple of 256
     pub fn pad_bytes_to_256(bytes: u32) -> u32 {
@@ -40,6 +44,24 @@ impl WindowlessState {
         };
         let output_buffer = device.create_buffer(&output_buffer_desc);
 
+        let intermediate_texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::FORMAT,
+            view_formats: &[],
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: Some("Intermediate Texture"),
+        };
+        let intermediate_texture = device.create_texture(&intermediate_texture_desc);
+        let intermediate_view =
+            intermediate_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: size.width,
@@ -51,7 +73,7 @@ impl WindowlessState {
             dimension: wgpu::TextureDimension::D2,
             format: Self::FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),
         };
         let texture = device.create_texture(&texture_desc);
@@ -61,12 +83,75 @@ impl WindowlessState {
         let output_image_size = size.width as usize * size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
+        let compute_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            format: Self::FORMAT,
+                            access: wgpu::StorageTextureAccess::ReadOnly,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            format: Self::FORMAT,
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("Compute binding group layout."),
+            });
+
+        let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bing Group"),
+            layout: &compute_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&intermediate_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+            ],
+        });
+
+        let compute_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Compute Pipeline Layout"),
+                bind_group_layouts: &[&compute_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Compute Pipeline Descriptor"),
+            layout: Some(&compute_pipeline_layout),
+            module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Compute Shader Source"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("trivial_compute.wgsl").into()),
+            }),
+            entry_point: "main",
+        });
+
         Self {
             size,
             output_buffer,
             output_image,
             texture,
+            intermediate_texture,
             view,
+            intermediate_view,
+            compute_bind_group,
+            compute_pipeline,
         }
     }
 }
@@ -76,7 +161,7 @@ impl InnerState for WindowlessState {
         self.size
     }
     fn format(&self) -> wgpu::TextureFormat {
-        wgpu::TextureFormat::Rgba8UnormSrgb
+        Self::FORMAT
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
         self.size = new_size;
@@ -96,6 +181,25 @@ impl InnerState for WindowlessState {
         };
         self.output_buffer = device.create_buffer(&output_buffer_desc);
 
+        let intermediate_texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: self.size.width,
+                height: self.size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::FORMAT,
+            view_formats: &[],
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            label: Some("Intermediate Texture"),
+        };
+        self.intermediate_texture = device.create_texture(&intermediate_texture_desc);
+        self.intermediate_view = self
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
         // TODO Also recreate the texture
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
@@ -108,7 +212,7 @@ impl InnerState for WindowlessState {
             dimension: wgpu::TextureDimension::D2,
             format: Self::FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),
         };
         self.texture = device.create_texture(&texture_desc);
@@ -141,7 +245,6 @@ impl State<WindowlessState> {
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     pub async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -152,7 +255,7 @@ impl State<WindowlessState> {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
+                    view: &self.inner_state.intermediate_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -190,6 +293,23 @@ impl State<WindowlessState> {
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
+        }
+        {
+            // TODO Will separately do `encoder.begin_compute_pass()`
+            // 3
+
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            compute_pass.set_bind_group(0, &self.inner_state.compute_bind_group, &[]);
+            compute_pass.set_pipeline(&self.inner_state.compute_pipeline);
+            compute_pass.dispatch_workgroups(
+                self.inner_state.size.width,
+                self.inner_state.size.height,
+                1,
+            )
         }
 
         encoder.copy_texture_to_buffer(
