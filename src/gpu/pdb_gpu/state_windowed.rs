@@ -47,7 +47,10 @@ impl WindowedState {
 }
 
 impl InnerState for WindowedState {
-    fn size(&self) -> PhysicalSize<u32> {
+    fn render_size(&self) -> PhysicalSize<u32> {
+        self.size
+    }
+    fn output_size(&self) -> PhysicalSize<u32> {
         self.size
     }
     fn format(&self) -> wgpu::TextureFormat {

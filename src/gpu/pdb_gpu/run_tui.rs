@@ -25,10 +25,16 @@ pub async fn run() {
 
     // TODO Need to find a way to avoid having to do mulitples of `COPY_BYTES_PER_ROW_ALIGNMENT`
     // State::new uses async code, so we're going to wait for it to finish
-    let mut state = State::<WindowlessState>::new(PhysicalSize {
-        width: 256,
-        height: 256,
-    })
+    let mut state = State::<WindowlessState>::new(
+        PhysicalSize {
+            width: 256,
+            height: 256,
+        },
+        PhysicalSize {
+            width: 1,
+            height: 1,
+        },
+    )
     .await;
 
     match state.render().await {
@@ -57,7 +63,7 @@ pub fn startup() -> Result<()> {
 }
 
 pub async fn run_new() -> Result<()> {
-    tracing_subscriber::fmt().with_max_level(Level::WARN).init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
@@ -65,7 +71,14 @@ pub async fn run_new() -> Result<()> {
 
     let width = terminal.size()?.width as u32;
     let height = terminal.size()?.height as u32;
-    let mut state = State::<WindowlessState>::new(PhysicalSize { width, height }).await;
+    let mut state = State::<WindowlessState>::new(
+        PhysicalSize { width, height },
+        PhysicalSize {
+            width: 1,
+            height: 1,
+        },
+    )
+    .await;
     state.camera_controller.speed *= 3.0;
     // state.camera_controller.speed /= 10.0;
 
@@ -79,8 +92,8 @@ pub async fn run_new() -> Result<()> {
             // TODO Fix the problems arising with this resize. Maybe because of await?
             let frame_width = frame.size().width as u32;
             let frame_height = frame.size().height as u32;
-            if frame_width != state.inner_state.size().width
-                || frame_height != state.inner_state.size().height
+            if frame_width != state.inner_state.render_size().width
+                || frame_height != state.inner_state.render_size().height
             {
                 state.resize(PhysicalSize {
                     width: frame_width,
@@ -96,8 +109,8 @@ pub async fn run_new() -> Result<()> {
                 .map(ColoredPixel::from)
                 .collect();
             let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            let widget =
-                rasterizer.pixels_to_widget(pixel_chunks, state.inner_state.size().width as usize);
+            let widget = rasterizer
+                .pixels_to_widget(pixel_chunks, state.inner_state.render_size().width as usize);
 
             frame.render_widget(widget, frame.size());
         })?;
