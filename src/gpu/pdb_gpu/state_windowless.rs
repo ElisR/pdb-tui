@@ -11,6 +11,7 @@ pub struct WindowlessState {
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
     pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
 }
 
 impl WindowlessState {
@@ -54,6 +55,7 @@ impl WindowlessState {
             label: Some("Windowless Output Texture"),
         };
         let texture = device.create_texture(&texture_desc);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Multiply by 4 because RGBA
         let output_image_size = size.width as usize * size.height as usize * 4;
@@ -64,6 +66,7 @@ impl WindowlessState {
             output_buffer,
             output_image,
             texture,
+            view,
         }
     }
 }
@@ -109,6 +112,9 @@ impl InnerState for WindowlessState {
             label: Some("Windowless Output Texture"),
         };
         self.texture = device.create_texture(&texture_desc);
+        self.view = self
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         // TODO Work out logic for new offset
     }
@@ -135,10 +141,6 @@ impl State<WindowlessState> {
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     pub async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let texture_view = self
-            .inner_state
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self
             .device
