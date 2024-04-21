@@ -20,10 +20,9 @@ Rendering proteins in the terminal with Rust
 
 ## Specific GPU Priorities
 
-- [ ] Add a trivial compute shader to the pipeline right at the end. Start off with just subsampling.
-  - Might have to implement differently for TUI and windowed modes.
-
-- [ ] Allow for grid-sizes of bigger than 1x1.
+- [x] Add a trivial compute shader to the pipeline right at the end. Start off with just subsampling.
+- [x] Allow for grid-sizes of bigger than 1x1.
+- [ ] Write a compute shader for traditional ASCII rasterisation.
 
 - [ ] Fix buffer sizes for images in `save_screenshot`.
 - [ ] Add colour back in.
