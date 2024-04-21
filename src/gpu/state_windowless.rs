@@ -30,7 +30,9 @@ pub struct WindowlessState {
 
 impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
-    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    const INTERMEDIATE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    // NOTE For outputting ASCII character from compute shader - may need to return integer
+    const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Uint;
 
     /// Take a number of bytes and return the next closest multiple of 256
     pub fn pad_bytes_to_256(bytes: u32) -> u32 {
@@ -91,7 +93,7 @@ impl WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::FORMAT,
+            format: Self::INTERMEDIATE_FORMAT,
             view_formats: &[],
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             label: Some("Intermediate Texture"),
@@ -109,7 +111,7 @@ impl WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::FORMAT,
+            format: Self::INTERMEDIATE_FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),
@@ -129,7 +131,7 @@ impl WindowlessState {
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::StorageTexture {
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            format: Self::FORMAT,
+                            format: Self::INTERMEDIATE_FORMAT,
                             access: wgpu::StorageTextureAccess::ReadOnly,
                         },
                         count: None,
@@ -139,7 +141,7 @@ impl WindowlessState {
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::StorageTexture {
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            format: Self::FORMAT,
+                            format: Self::INTERMEDIATE_FORMAT,
                             access: wgpu::StorageTextureAccess::WriteOnly,
                         },
                         count: None,
@@ -216,7 +218,7 @@ impl InnerState for WindowlessState {
         }
     }
     fn format(&self) -> wgpu::TextureFormat {
-        Self::FORMAT
+        Self::INTERMEDIATE_FORMAT
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) {
         self.output_size = new_size;
@@ -246,7 +248,7 @@ impl InnerState for WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::FORMAT,
+            format: Self::INTERMEDIATE_FORMAT,
             view_formats: &[],
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             label: Some("Intermediate Texture"),
@@ -265,7 +267,7 @@ impl InnerState for WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::FORMAT,
+            format: Self::INTERMEDIATE_FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),

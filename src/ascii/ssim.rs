@@ -9,7 +9,7 @@ pub enum SsimError {
 // Constants for SSIM calculation
 const K1: f32 = 0.01;
 const K2: f32 = 0.03;
-const L: f32 = 1.0; // Dynamic range
+const L: f32 = 1.0; // Dynamic range, usually 2^{bits per pixel} - 1
 
 /// Return the SSIM for test and references
 pub fn ssim(test: &[f32], reference: &[f32]) -> Result<f32, SsimError> {
