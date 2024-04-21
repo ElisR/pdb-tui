@@ -1,4 +1,4 @@
-use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode, UnifiedKeyKind};
+use crate::gpu::input::{UnifiedEvent, UnifiedKeyCode, UnifiedKeyKind};
 
 #[derive(Debug)]
 pub struct Camera {

@@ -4,9 +4,9 @@ use tracing::Level;
 use tracing_subscriber;
 use winit::dpi::PhysicalSize;
 
-use crate::gpu::pdb_gpu::input::{UnifiedEvent, UnifiedKeyCode};
-use crate::gpu::pdb_gpu::state_windowless::WindowlessState;
-use crate::gpu::pdb_gpu::{InnerState, State};
+use crate::gpu::input::{UnifiedEvent, UnifiedKeyCode};
+use crate::gpu::state_windowless::WindowlessState;
+use crate::gpu::{InnerState, State};
 
 use crate::basic_rasterizer::BasicAsciiRasterizer;
 use crate::rasterizer::ColoredPixel;

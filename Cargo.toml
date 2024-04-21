@@ -37,8 +37,8 @@ flume = "0.11.0"
 
 [[bin]]
 name = "pdb_gpu"
-path = "src/gpu/pdb_gpu/main_windowed.rs"
+path = "src/gpu/main_windowed.rs"
 
 [[bin]]
 name = "pdb_gpu_tui"
-path = "src/gpu/pdb_gpu/main_tui.rs"
+path = "src/gpu/main_tui.rs"

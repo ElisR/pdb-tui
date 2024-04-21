@@ -1,4 +1,4 @@
-use crate::gpu::pdb_gpu::model::Vertex;
+use crate::gpu::model::Vertex;
 
 #[derive(Debug)]
 pub struct Instance {
