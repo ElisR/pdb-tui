@@ -4,7 +4,7 @@ use std::io::{BufReader, Cursor};
 
 use wgpu::util::DeviceExt;
 
-use crate::gpu::pdb_gpu::model;
+use crate::gpu::model;
 
 pub async fn load_string(file_name: &str) -> anyhow::Result<String> {
     let path = std::path::Path::new(env!("OUT_DIR"))

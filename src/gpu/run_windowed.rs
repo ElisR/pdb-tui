@@ -2,8 +2,8 @@ use tracing::warn;
 use tracing::Level;
 use tracing_subscriber;
 
-use crate::gpu::pdb_gpu::state_windowed::WindowedState;
-use crate::gpu::pdb_gpu::State;
+use crate::gpu::state_windowed::WindowedState;
+use crate::gpu::State;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},

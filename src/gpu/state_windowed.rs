@@ -1,7 +1,7 @@
 use std::iter;
 
-use crate::gpu::pdb_gpu::model::{DrawLight, DrawModel};
-use crate::gpu::pdb_gpu::{InnerState, State};
+use crate::gpu::model::{DrawLight, DrawModel};
+use crate::gpu::{InnerState, State};
 use winit::{dpi::PhysicalSize, window::Window};
 
 #[derive(Debug)]

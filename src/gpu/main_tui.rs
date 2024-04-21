@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use pdb_tui::gpu::pdb_gpu::run_tui::{run_new, shutdown, startup};
+use pdb_tui::gpu::run_tui::{run_new, shutdown, startup};
 use std::io::Result;
 
 // fn main() {
