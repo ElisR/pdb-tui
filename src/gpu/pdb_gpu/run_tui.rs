@@ -20,32 +20,6 @@ use crossterm::{
 use ratatui::prelude::{CrosstermBackend, Terminal};
 use std::io::{stdout, Result};
 
-pub async fn run() {
-    tracing_subscriber::fmt().with_max_level(Level::WARN).init();
-
-    // TODO Need to find a way to avoid having to do mulitples of `COPY_BYTES_PER_ROW_ALIGNMENT`
-    // State::new uses async code, so we're going to wait for it to finish
-    let mut state = State::<WindowlessState>::new(
-        PhysicalSize {
-            width: 256,
-            height: 256,
-        },
-        PhysicalSize {
-            width: 1,
-            height: 1,
-        },
-    )
-    .await;
-
-    match state.render().await {
-        Ok(_) => {}
-        // Reconfigure the surface if it's lost or outdated
-        Err(_) => {
-            error!("Something went wrong with rendering.")
-        }
-    };
-}
-
 // TODO Import colored char
 
 /// Perform shutdown of terminal
