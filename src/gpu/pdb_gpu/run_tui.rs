@@ -66,8 +66,8 @@ pub async fn run_new() -> Result<()> {
             // TODO Fix the problems arising with this resize. Maybe because of await?
             let frame_width = frame.size().width as u32;
             let frame_height = frame.size().height as u32;
-            if frame_width != state.inner_state.render_size().width
-                || frame_height != state.inner_state.render_size().height
+            if frame_width != state.inner_state.output_size().width
+                || frame_height != state.inner_state.output_size().height
             {
                 state.resize(PhysicalSize {
                     width: frame_width,
@@ -84,7 +84,7 @@ pub async fn run_new() -> Result<()> {
                 .collect();
             let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
             let widget = rasterizer
-                .pixels_to_widget(pixel_chunks, state.inner_state.render_size().width as usize);
+                .pixels_to_widget(pixel_chunks, state.inner_state.output_size().width as usize);
 
             frame.render_widget(widget, frame.size());
         })?;

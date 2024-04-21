@@ -166,10 +166,10 @@ impl WindowlessState {
 }
 
 impl InnerState for WindowlessState {
-    fn render_size(&self) -> PhysicalSize<u32> {
+    fn output_size(&self) -> PhysicalSize<u32> {
         self.output_size
     }
-    fn output_size(&self) -> PhysicalSize<u32> {
+    fn render_size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
             width: self.output_size.width * self.grid_size.width,
             height: self.output_size.height * self.grid_size.height,
@@ -357,16 +357,16 @@ impl State<WindowlessState> {
                     // Check that this isn't meant to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
                         let bytes =
-                            WindowlessState::U32_SIZE * self.inner_state.render_size().width;
+                            WindowlessState::U32_SIZE * self.inner_state.output_size().width;
                         WindowlessState::pad_bytes_to_256(bytes)
                     }),
-                    rows_per_image: Some(self.inner_state.render_size().height),
+                    rows_per_image: Some(self.inner_state.output_size().height),
                 },
             },
             // TODO Stop redefining the same size
             wgpu::Extent3d {
-                width: self.inner_state.render_size().width,
-                height: self.inner_state.render_size().height,
+                width: self.inner_state.output_size().width,
+                height: self.inner_state.output_size().height,
                 depth_or_array_layers: 1,
             },
         );
@@ -397,13 +397,13 @@ impl State<WindowlessState> {
             .output_image
             .chunks(
                 WindowlessState::U32_SIZE as usize
-                    * WindowlessState::pad_width_to_64(self.inner_state.render_size().width)
+                    * WindowlessState::pad_width_to_64(self.inner_state.output_size().width)
                         as usize,
             )
             .flat_map(|row| {
                 row.iter().take(
                     WindowlessState::U32_SIZE as usize
-                        * self.inner_state.render_size().width as usize,
+                        * self.inner_state.output_size().width as usize,
                 )
             })
             .cloned()
