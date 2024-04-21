@@ -1,10 +1,11 @@
+//! Compute shader for averaging across non-trivial grid sizes
+// Template for more advanced compute shaders later
+
 // Following constants should be prepended during `wgpu::ShaderSource::Wgsl`
 // const grid_width: u32 = 1u;
 // const grid_height: u32 = 2u;
 
 const grid_size: u32 = grid_width * grid_height;
-
-//! Post-processing compute shader
 
 @group(0) @binding(0) var input_texture: texture_storage_2d<rgba8unorm, read>;
 @group(0) @binding(1) var output_texture: texture_storage_2d<rgba8unorm, write>;
@@ -22,11 +23,11 @@ var<workgroup> workgroup_data: array<vec4<f32>, grid_size>;
 
 @compute @workgroup_size(grid_width, grid_height)
 fn main(
-    @builtin(global_invocation_id) id: vec3<u32>,
+    @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>
 ) {
-    let coord = id.xy;
+    let coord = global_id.xy;
 
     let index = local_id.x + grid_width * local_id.y;
     let in_texel = textureLoad(input_texture, vec2<i32>(coord));
