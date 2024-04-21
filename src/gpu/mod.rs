@@ -8,7 +8,7 @@ use camera::{Camera, CameraController, CameraUniform};
 use instance::{Instance, InstanceRaw, LightUniform};
 use model::Vertex;
 
-use crate::gpu::pdb_gpu::input::UnifiedEvent;
+use crate::gpu::input::UnifiedEvent;
 
 pub mod camera;
 pub mod input;
