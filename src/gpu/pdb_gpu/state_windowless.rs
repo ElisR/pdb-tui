@@ -24,12 +24,12 @@ impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
     const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
-    // Take a number of bytes and return the next closest multiple of 256
+    /// Take a number of bytes and return the next closest multiple of 256
     pub fn pad_bytes_to_256(bytes: u32) -> u32 {
         (bytes + 255) & !255
     }
 
-    // Pad width to 64 since each pixel requires 4 bytes
+    /// Pad width to 64 since each pixel requires 4 bytes
     pub fn pad_width_to_64(width: u32) -> u32 {
         (width + 63) & !63
     }
