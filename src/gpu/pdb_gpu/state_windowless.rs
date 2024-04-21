@@ -8,6 +8,12 @@ use crate::gpu::pdb_gpu::{InnerState, State};
 const FONT_ASPECT_RATIO: f32 = 2.0;
 
 #[derive(Debug)]
+pub enum WindowlessStateError {
+    /// Grid size does not have a valid ASCII rasterization compute shader
+    InvalidGridSize { grid_size: PhysicalSize<u32> },
+}
+
+#[derive(Debug)]
 pub struct WindowlessState {
     pub output_size: winit::dpi::PhysicalSize<u32>,
     pub grid_size: winit::dpi::PhysicalSize<u32>,
@@ -36,11 +42,34 @@ impl WindowlessState {
         (width + 63) & !63
     }
 
+    /// Make sure that the grid size is valid
+    /// Sizes need to be powers of two for the compute shader
+    fn validate_grid_size(
+        grid_size: PhysicalSize<u32>,
+    ) -> Result<PhysicalSize<u32>, WindowlessStateError> {
+        // Check if width and height are powers of two
+        let width_pow_2 = (grid_size.width & (grid_size.width - 1)) == 0;
+        let height_pow_2 = (grid_size.height & (grid_size.height - 1)) == 0;
+
+        if (width_pow_2 && height_pow_2 && (grid_size.height == 2 * grid_size.width))
+            || (grid_size.height == 1 && grid_size.width == 1)
+        {
+            Ok(grid_size)
+        } else {
+            Err(WindowlessStateError::InvalidGridSize { grid_size })
+        }
+    }
+
     pub fn new(
         output_size: PhysicalSize<u32>,
         grid_size: PhysicalSize<u32>,
         device: &wgpu::Device,
     ) -> Self {
+        let grid_size = Self::validate_grid_size(grid_size).unwrap_or(PhysicalSize {
+            width: 1,
+            height: 1,
+        });
+
         // TODO Need to add functionality for changing this
         let output_buffer_size = (Self::U32_SIZE
             * Self::pad_width_to_64(output_size.width)
@@ -116,7 +145,7 @@ impl WindowlessState {
                         count: None,
                     },
                 ],
-                label: Some("Compute Bing Group Layout"),
+                label: Some("Compute Bind Group Layout"),
             });
 
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -146,7 +175,16 @@ impl WindowlessState {
             layout: Some(&compute_pipeline_layout),
             module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Compute Shader Source"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("trivial_compute.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(
+                    format!(
+                        "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
+                        grid_size.width,
+                        grid_size.height,
+                        include_str!("trivial_compute.wgsl")
+                    )
+                    .into(),
+                    // include_str!("trivial_compute.wgsl").into(),
+                ),
             }),
             entry_point: "main",
         });
@@ -435,5 +473,66 @@ impl State<WindowlessState> {
         )
         .unwrap();
         buffer.save(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_power_of_two() {
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 1,
+            height: 1
+        })
+        .is_ok());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 1,
+            height: 2
+        })
+        .is_ok());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 2,
+            height: 4
+        })
+        .is_ok());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 4,
+            height: 8
+        })
+        .is_ok());
+
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 2,
+            height: 1
+        })
+        .is_err());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 4,
+            height: 2
+        })
+        .is_err());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 8,
+            height: 4
+        })
+        .is_err());
+
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 3,
+            height: 6
+        })
+        .is_err());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 6,
+            height: 12
+        })
+        .is_err());
+        assert!(WindowlessState::validate_grid_size(PhysicalSize {
+            width: 12,
+            height: 6
+        })
+        .is_err());
     }
 }
