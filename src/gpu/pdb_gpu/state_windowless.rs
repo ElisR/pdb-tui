@@ -5,6 +5,8 @@ use winit::dpi::PhysicalSize;
 use crate::gpu::pdb_gpu::model::{DrawLight, DrawModel};
 use crate::gpu::pdb_gpu::{InnerState, State};
 
+const FONT_ASPECT_RATIO: f32 = 2.0;
+
 #[derive(Debug)]
 pub struct WindowlessState {
     pub output_size: winit::dpi::PhysicalSize<u32>,
@@ -268,11 +270,18 @@ impl State<WindowlessState> {
         let inner_state = WindowlessState::new(output_size, grid_size, &device);
         let mut state = Self::new_from_inner_state(inner_state, device, queue).await;
 
-        // Accounting for the fact that font height is roughly twice the width
-        state.camera.aspect /= 2.0;
-        state.update();
+        state.fix_aspect_ratio();
         state
     }
+
+    /// Account for the fact that font height is roughly twice the width
+    fn fix_aspect_ratio(&mut self) {
+        let grid_ratio =
+            self.inner_state.grid_size.height as f32 / self.inner_state.grid_size.width as f32;
+        self.camera.aspect /= FONT_ASPECT_RATIO / grid_ratio;
+        self.update();
+    }
+
     // TODO Need to change this error
     // TODO Need to refactor more out of this function
     pub async fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
