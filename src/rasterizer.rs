@@ -58,6 +58,16 @@ impl From<ColoredChar> for char {
     }
 }
 
+/// Convert from ASCII characters encoded as u8 in compute shader
+impl From<u8> for ColoredChar {
+    fn from(value: u8) -> Self {
+        Self {
+            symbol: value as char,
+            color: Color::Red,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum RasterizerError {
     GradientNotMatchingThresholds,
