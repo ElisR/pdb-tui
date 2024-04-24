@@ -76,16 +76,6 @@ pub async fn run_new() -> Result<()> {
                 });
             }
 
-            // let pixels: Vec<_> = state
-            //     .inner_state
-            //     .output_image
-            //     .chunks(4usize)
-            //     .map(|c| c[3])
-            //     .map(ColoredPixel::from)
-            //     .collect();
-            // let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            // let widget = rasterizer
-            //     .pixels_to_widget(pixel_chunks, state.inner_state.output_size().width as usize);
             let colored_chars: Vec<_> = state
                 .inner_state
                 .output_image
