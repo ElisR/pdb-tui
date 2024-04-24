@@ -69,7 +69,7 @@ pub trait Rasterizer {
     fn pixels_to_stdout(
         &self,
         pixels: Vec<&[ColoredPixel]>,
-        render_width: usize,
+        output_width: usize,
     ) -> Vec<ColoredChar>;
     /// Get the grid-size used for rasterizing
     fn grid_height(&self) -> usize;
