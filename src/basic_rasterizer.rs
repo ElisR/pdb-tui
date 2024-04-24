@@ -67,10 +67,10 @@ impl BasicAsciiRasterizer {
     pub fn pixels_to_widget(
         &self,
         pixels: Vec<&[ColoredPixel]>,
-        render_width: usize,
+        output_width: usize,
     ) -> impl Widget {
         let lines: Vec<Line> = pixels
-            .chunks(render_width)
+            .chunks(output_width)
             .rev()
             .map(|row| {
                 let spans: Vec<Span> = row
@@ -101,13 +101,13 @@ impl Rasterizer for BasicAsciiRasterizer {
     fn pixels_to_stdout(
         &self,
         pixels: Vec<&[ColoredPixel]>,
-        render_width: usize,
+        output_width: usize,
     ) -> Vec<ColoredChar> {
         // Add one per row to account for newline character
-        let total_chars = pixels.len() + (pixels.len() / render_width);
+        let total_chars = pixels.len() + (pixels.len() / output_width);
         let mut out: Vec<ColoredChar> = Vec::with_capacity(total_chars);
         // Reverse because small coord means small index, but the top of the screen should have large y
-        for row in pixels.chunks(render_width).rev() {
+        for row in pixels.chunks(output_width).rev() {
             for chunk in row.iter() {
                 let pixel = chunk[0];
                 let ascii = self.pixel_to_char(pixel);
