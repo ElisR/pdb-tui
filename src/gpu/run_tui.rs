@@ -9,7 +9,8 @@ use crate::gpu::state_windowless::WindowlessState;
 use crate::gpu::{InnerState, State};
 
 use crate::basic_rasterizer::BasicAsciiRasterizer;
-use crate::rasterizer::ColoredPixel;
+use crate::rasterizer::ColoredChar;
+use crate::trivial_rasterizer::chars_to_widget;
 
 use crossterm::{
     event::{self},
@@ -41,7 +42,7 @@ pub async fn run_new() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    let rasterizer = BasicAsciiRasterizer::default();
+    // let rasterizer = BasicAsciiRasterizer::default();
 
     let width = terminal.size()?.width as u32;
     let height = terminal.size()?.height as u32;
@@ -75,16 +76,27 @@ pub async fn run_new() -> Result<()> {
                 });
             }
 
-            let pixels: Vec<_> = state
+            // let pixels: Vec<_> = state
+            //     .inner_state
+            //     .output_image
+            //     .chunks(4usize)
+            //     .map(|c| c[3])
+            //     .map(ColoredPixel::from)
+            //     .collect();
+            // let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
+            // let widget = rasterizer
+            //     .pixels_to_widget(pixel_chunks, state.inner_state.output_size().width as usize);
+            let colored_chars: Vec<_> = state
                 .inner_state
                 .output_image
                 .chunks(4usize)
                 .map(|c| c[3])
-                .map(ColoredPixel::from)
+                .map(ColoredChar::from)
                 .collect();
-            let pixel_chunks: Vec<&[ColoredPixel]> = pixels.chunks(1usize).collect();
-            let widget = rasterizer
-                .pixels_to_widget(pixel_chunks, state.inner_state.output_size().width as usize);
+            let widget = chars_to_widget(
+                colored_chars,
+                state.inner_state.output_size().width as usize,
+            );
 
             frame.render_widget(widget, frame.size());
         })?;
