@@ -111,7 +111,7 @@ impl WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::INTERMEDIATE_FORMAT,
+            format: Self::OUTPUT_FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),
@@ -141,7 +141,7 @@ impl WindowlessState {
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::StorageTexture {
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            format: Self::INTERMEDIATE_FORMAT,
+                            format: Self::OUTPUT_FORMAT,
                             access: wgpu::StorageTextureAccess::WriteOnly,
                         },
                         count: None,
@@ -182,13 +182,13 @@ impl WindowlessState {
                         "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
                         grid_size.width,
                         grid_size.height,
-                        include_str!("trivial_compute.wgsl")
+                        include_str!("basic_ascii.wgsl")
                     )
                     .into(),
                     // include_str!("trivial_compute.wgsl").into(),
                 ),
             }),
-            entry_point: "main",
+            entry_point: "basic_ascii_rasterizer",
         });
 
         Self {

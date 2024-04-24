@@ -5,6 +5,7 @@ pub mod read;
 pub mod render;
 pub mod scene;
 pub mod surface;
+pub mod trivial_rasterizer;
 pub mod tui;
 
 /// Module for learning ASCII rendering
