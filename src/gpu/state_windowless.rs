@@ -188,7 +188,7 @@ impl WindowlessState {
                     // include_str!("trivial_compute.wgsl").into(),
                 ),
             }),
-            entry_point: "basic_ascii_rasterizer",
+            entry_point: "rasterize",
         });
 
         Self {
