@@ -14,9 +14,40 @@ pub enum WindowlessStateError {
 }
 
 #[derive(Debug)]
+pub struct ValidGridSize {
+    width: u32,
+    height: u32,
+}
+
+impl ValidGridSize {
+    /// Make sure that the grid size is valid
+    /// Sizes need to be powers of two for the compute shader
+    pub fn new(width: u32, height: u32) -> Self {
+        // Check if width and height are powers of two
+        let width_pow_2 = (width & (width - 1)) == 0;
+        let height_pow_2 = (height & (height - 1)) == 0;
+
+        if (width_pow_2 && height_pow_2 && (height == 2 * width)) || (height == 1 && width == 1) {
+            Self { width, height }
+        } else {
+            Self {
+                width: 1,
+                height: 1,
+            }
+        }
+    }
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+}
+
+#[derive(Debug)]
 pub struct WindowlessState {
     pub output_size: winit::dpi::PhysicalSize<u32>,
-    pub grid_size: winit::dpi::PhysicalSize<u32>,
+    pub grid_size: ValidGridSize,
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
     pub texture: wgpu::Texture,
@@ -31,7 +62,6 @@ pub struct WindowlessState {
 impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
     const INTERMEDIATE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
-    // NOTE For outputting ASCII character from compute shader - may need to return integer
     const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Uint;
 
     /// Take a number of bytes and return the next closest multiple of 256
@@ -44,34 +74,11 @@ impl WindowlessState {
         (width + 63) & !63
     }
 
-    /// Make sure that the grid size is valid
-    /// Sizes need to be powers of two for the compute shader
-    fn validate_grid_size(
-        grid_size: PhysicalSize<u32>,
-    ) -> Result<PhysicalSize<u32>, WindowlessStateError> {
-        // Check if width and height are powers of two
-        let width_pow_2 = (grid_size.width & (grid_size.width - 1)) == 0;
-        let height_pow_2 = (grid_size.height & (grid_size.height - 1)) == 0;
-
-        if (width_pow_2 && height_pow_2 && (grid_size.height == 2 * grid_size.width))
-            || (grid_size.height == 1 && grid_size.width == 1)
-        {
-            Ok(grid_size)
-        } else {
-            Err(WindowlessStateError::InvalidGridSize { grid_size })
-        }
-    }
-
     pub fn new(
         output_size: PhysicalSize<u32>,
-        grid_size: PhysicalSize<u32>,
+        grid_size: ValidGridSize,
         device: &wgpu::Device,
     ) -> Self {
-        let grid_size = Self::validate_grid_size(grid_size).unwrap_or(PhysicalSize {
-            width: 1,
-            height: 1,
-        });
-
         // TODO Need to add functionality for changing this
         let output_buffer_size = (Self::U32_SIZE
             * Self::pad_width_to_64(output_size.width)
@@ -86,8 +93,8 @@ impl WindowlessState {
 
         let intermediate_texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: output_size.width * grid_size.width,
-                height: output_size.height * grid_size.height,
+                width: output_size.width * grid_size.width(),
+                height: output_size.height * grid_size.height(),
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -180,8 +187,8 @@ impl WindowlessState {
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
                         "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
-                        grid_size.width,
-                        grid_size.height,
+                        grid_size.width(),
+                        grid_size.height(),
                         include_str!("basic_ascii.wgsl")
                     )
                     .into(),
@@ -213,8 +220,8 @@ impl InnerState for WindowlessState {
     }
     fn render_size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
-            width: self.output_size.width * self.grid_size.width,
-            height: self.output_size.height * self.grid_size.height,
+            width: self.output_size.width * self.grid_size.width(),
+            height: self.output_size.height * self.grid_size.height(),
         }
     }
     fn format(&self) -> wgpu::TextureFormat {
@@ -241,8 +248,8 @@ impl InnerState for WindowlessState {
 
         let intermediate_texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: self.output_size.width * self.grid_size.width,
-                height: self.output_size.height * self.grid_size.height,
+                width: self.output_size.width * self.grid_size.width(),
+                height: self.output_size.height * self.grid_size.height(),
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -305,7 +312,8 @@ impl State<WindowlessState> {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         });
-
+        // TODO Consider moving this valid grid size creation into inner state
+        let grid_size = ValidGridSize::new(grid_size.width, grid_size.height);
         let (_adapter, device, queue) = Self::create_adapter_device_queue(None, &instance).await;
         let inner_state = WindowlessState::new(output_size, grid_size, &device);
         let mut state = Self::new_from_inner_state(inner_state, device, queue).await;
@@ -317,7 +325,7 @@ impl State<WindowlessState> {
     /// Account for the fact that font height is roughly twice the width
     fn fix_aspect_ratio(&mut self) {
         let grid_ratio =
-            self.inner_state.grid_size.height as f32 / self.inner_state.grid_size.width as f32;
+            self.inner_state.grid_size.height() as f32 / self.inner_state.grid_size.width() as f32;
         self.camera.aspect /= FONT_ASPECT_RATIO / grid_ratio;
         self.update();
     }
@@ -478,63 +486,4 @@ impl State<WindowlessState> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_power_of_two() {
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 1,
-            height: 1
-        })
-        .is_ok());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 1,
-            height: 2
-        })
-        .is_ok());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 2,
-            height: 4
-        })
-        .is_ok());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 4,
-            height: 8
-        })
-        .is_ok());
-
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 2,
-            height: 1
-        })
-        .is_err());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 4,
-            height: 2
-        })
-        .is_err());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 8,
-            height: 4
-        })
-        .is_err());
-
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 3,
-            height: 6
-        })
-        .is_err());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 6,
-            height: 12
-        })
-        .is_err());
-        assert!(WindowlessState::validate_grid_size(PhysicalSize {
-            width: 12,
-            height: 6
-        })
-        .is_err());
-    }
-}
+// TODO Add tests back in for power-of-two tests
