@@ -8,9 +8,9 @@ use crate::gpu::input::{UnifiedEvent, UnifiedKeyCode};
 use crate::gpu::state_windowless::WindowlessState;
 use crate::gpu::{InnerState, State};
 
-use crate::basic_rasterizer::BasicAsciiRasterizer;
+// use crate::basic_rasterizer::BasicAsciiRasterizer;
+use crate::rasterizer::chars_to_widget;
 use crate::rasterizer::ColoredChar;
-use crate::trivial_rasterizer::chars_to_widget;
 
 use crossterm::{
     event::{self},
@@ -20,8 +20,6 @@ use crossterm::{
 };
 use ratatui::prelude::{CrosstermBackend, Terminal};
 use std::io::{stdout, Result};
-
-// TODO Import colored char
 
 /// Perform shutdown of terminal
 pub fn shutdown() -> Result<()> {
@@ -64,7 +62,7 @@ pub async fn run_new() -> Result<()> {
 
     loop {
         terminal.draw(|frame| {
-            // TODO Fix the problems arising with this resize. Maybe because of await?
+            // TODO Fix frame not updating immediately after resize event. Maybe because of await?
             let frame_width = frame.size().width as u32;
             let frame_height = frame.size().height as u32;
             if frame_width != state.inner_state.output_size().width
