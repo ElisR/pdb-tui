@@ -20,6 +20,7 @@ pub mod run_windowed;
 pub mod state_windowed;
 pub mod state_windowless;
 pub mod texture;
+pub mod trivial_rasterizer;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(

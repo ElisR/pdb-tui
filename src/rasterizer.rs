@@ -1,4 +1,9 @@
-use ratatui::style::Color;
+use ratatui::{
+    prelude::Style,
+    style::Color,
+    text::{Line, Span},
+    widgets::{Paragraph, Widget},
+};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ColoredPixel {
@@ -84,4 +89,24 @@ pub trait Rasterizer {
     /// Get the grid-size used for rasterizing
     fn grid_height(&self) -> usize;
     fn grid_width(&self) -> usize;
+}
+
+pub fn chars_to_widget(chars: Vec<ColoredChar>, output_width: usize) -> impl Widget {
+    let lines: Vec<Line> = chars
+        .chunks(output_width)
+        .rev()
+        .map(|row| {
+            let spans: Vec<Span> = row
+                .iter()
+                .map(|colored_char| {
+                    Span::styled(
+                        colored_char.symbol.to_string(),
+                        Style::default().fg(colored_char.color),
+                    )
+                })
+                .collect();
+            Line::default().spans(spans)
+        })
+        .collect();
+    Paragraph::new(lines)
 }

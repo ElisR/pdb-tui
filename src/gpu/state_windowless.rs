@@ -2,18 +2,15 @@ use image::{ImageBuffer, Rgba};
 use std::iter;
 use winit::dpi::PhysicalSize;
 
-use crate::gpu::model::{DrawLight, DrawModel};
-use crate::gpu::{InnerState, State};
+use crate::gpu::{
+    model::{DrawLight, DrawModel},
+    trivial_rasterizer::GPURasterizer,
+    InnerState, State,
+};
 
 const FONT_ASPECT_RATIO: f32 = 2.0;
 
-#[derive(Debug)]
-pub enum WindowlessStateError {
-    /// Grid size does not have a valid ASCII rasterization compute shader
-    InvalidGridSize { grid_size: PhysicalSize<u32> },
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ValidGridSize {
     width: u32,
     height: u32,
@@ -47,20 +44,18 @@ impl ValidGridSize {
 #[derive(Debug)]
 pub struct WindowlessState {
     pub output_size: winit::dpi::PhysicalSize<u32>,
-    pub grid_size: ValidGridSize,
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
     pub texture: wgpu::Texture,
     pub intermediate_texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub intermediate_view: wgpu::TextureView,
-    pub compute_bind_group: wgpu::BindGroup,
-    pub compute_bind_group_layout: wgpu::BindGroupLayout,
-    pub compute_pipeline: wgpu::ComputePipeline,
+    pub rasterizer: GPURasterizer,
 }
 
 impl WindowlessState {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
+    // TODO Remove these and refer to the GPU rasterizer version
     const INTERMEDIATE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
     const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Uint;
 
@@ -130,86 +125,17 @@ impl WindowlessState {
         let output_image_size = output_size.width as usize * output_size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
-        let compute_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            format: Self::INTERMEDIATE_FORMAT,
-                            access: wgpu::StorageTextureAccess::ReadOnly,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            format: Self::OUTPUT_FORMAT,
-                            access: wgpu::StorageTextureAccess::WriteOnly,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("Compute Bind Group Layout"),
-            });
-
-        let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bind Group"),
-            layout: &compute_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&intermediate_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-            ],
-        });
-
-        let compute_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Compute Pipeline Layout"),
-                bind_group_layouts: &[&compute_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compute Pipeline Descriptor"),
-            layout: Some(&compute_pipeline_layout),
-            module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Compute Shader Source"),
-                source: wgpu::ShaderSource::Wgsl(
-                    format!(
-                        "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
-                        grid_size.width(),
-                        grid_size.height(),
-                        include_str!("basic_ascii.wgsl")
-                    )
-                    .into(),
-                    // include_str!("trivial_compute.wgsl").into(),
-                ),
-            }),
-            entry_point: "rasterize",
-        });
+        let rasterizer = GPURasterizer::new(grid_size, device, &intermediate_view, &view);
 
         Self {
             output_size,
-            grid_size,
             output_buffer,
             output_image,
             texture,
             intermediate_texture,
             view,
             intermediate_view,
-            compute_bind_group,
-            compute_bind_group_layout,
-            compute_pipeline,
+            rasterizer,
         }
     }
 }
@@ -220,8 +146,8 @@ impl InnerState for WindowlessState {
     }
     fn render_size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
-            width: self.output_size.width * self.grid_size.width(),
-            height: self.output_size.height * self.grid_size.height(),
+            width: self.output_size.width * self.rasterizer.grid_size.width(),
+            height: self.output_size.height * self.rasterizer.grid_size.height(),
         }
     }
     fn format(&self) -> wgpu::TextureFormat {
@@ -248,8 +174,8 @@ impl InnerState for WindowlessState {
 
         let intermediate_texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: self.output_size.width * self.grid_size.width(),
-                height: self.output_size.height * self.grid_size.height(),
+                width: self.output_size.width * self.rasterizer.grid_size.width(),
+                height: self.output_size.height * self.rasterizer.grid_size.height(),
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -285,21 +211,9 @@ impl InnerState for WindowlessState {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         // TODO Move bind group creation to separate function
-        self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bing Group"),
-            layout: &self.compute_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&self.intermediate_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&self.view),
-                },
-            ],
-        });
 
+        self.rasterizer
+            .resize(device, &self.intermediate_view, &self.view);
         // TODO Work out logic for new offset
     }
 }
@@ -324,8 +238,8 @@ impl State<WindowlessState> {
 
     /// Account for the fact that font height is roughly twice the width
     fn fix_aspect_ratio(&mut self) {
-        let grid_ratio =
-            self.inner_state.grid_size.height() as f32 / self.inner_state.grid_size.width() as f32;
+        let grid_ratio = self.inner_state.rasterizer.grid_size.height() as f32
+            / self.inner_state.rasterizer.grid_size.width() as f32;
         self.camera.aspect /= FONT_ASPECT_RATIO / grid_ratio;
         self.update();
     }
@@ -391,8 +305,8 @@ impl State<WindowlessState> {
                 timestamp_writes: None,
             });
 
-            compute_pass.set_bind_group(0, &self.inner_state.compute_bind_group, &[]);
-            compute_pass.set_pipeline(&self.inner_state.compute_pipeline);
+            compute_pass.set_bind_group(0, &self.inner_state.rasterizer.compute_bind_group, &[]);
+            compute_pass.set_pipeline(&self.inner_state.rasterizer.compute_pipeline);
             compute_pass.dispatch_workgroups(
                 self.inner_state.output_size.width,
                 self.inner_state.output_size.height,
