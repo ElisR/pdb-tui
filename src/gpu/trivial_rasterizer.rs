@@ -6,7 +6,7 @@ use wgpu::TextureView;
 // TODO Put the functionality for loading up the shader and grid size into here
 
 #[derive(Debug)]
-pub struct GPURasterizer {
+pub struct BasicGPURasterizer {
     pub grid_size: ValidGridSize,
     pub compute_pipeline: wgpu::ComputePipeline,
     pub compute_pipeline_layout: wgpu::PipelineLayout,
@@ -14,7 +14,7 @@ pub struct GPURasterizer {
     pub compute_bind_group_layout: wgpu::BindGroupLayout,
 }
 
-impl GPURasterizer {
+impl BasicGPURasterizer {
     const INPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
     const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Uint;
 
@@ -121,6 +121,22 @@ impl GPURasterizer {
                 },
             ],
         });
+    }
+
+    pub fn run_compute(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_width: u32,
+        output_height: u32,
+    ) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("Compute Pass"),
+            timestamp_writes: None,
+        });
+
+        compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+        compute_pass.set_pipeline(&self.compute_pipeline);
+        compute_pass.dispatch_workgroups(output_width, output_height, 1)
     }
 
     fn input_format(&self) -> wgpu::TextureFormat {

@@ -4,7 +4,7 @@ use winit::dpi::PhysicalSize;
 
 use crate::gpu::{
     model::{DrawLight, DrawModel},
-    trivial_rasterizer::GPURasterizer,
+    trivial_rasterizer::BasicGPURasterizer,
     InnerState, State,
 };
 
@@ -50,7 +50,7 @@ pub struct WindowlessState {
     pub intermediate_texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub intermediate_view: wgpu::TextureView,
-    pub rasterizer: GPURasterizer,
+    pub rasterizer: BasicGPURasterizer,
 }
 
 impl WindowlessState {
@@ -125,7 +125,7 @@ impl WindowlessState {
         let output_image_size = output_size.width as usize * output_size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
-        let rasterizer = GPURasterizer::new(grid_size, device, &intermediate_view, &view);
+        let rasterizer = BasicGPURasterizer::new(grid_size, device, &intermediate_view, &view);
 
         Self {
             output_size,
@@ -297,21 +297,11 @@ impl State<WindowlessState> {
             );
         }
         {
-            // TODO Will separately do `encoder.begin_compute_pass()`
-            // 3
-
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Compute Pass"),
-                timestamp_writes: None,
-            });
-
-            compute_pass.set_bind_group(0, &self.inner_state.rasterizer.compute_bind_group, &[]);
-            compute_pass.set_pipeline(&self.inner_state.rasterizer.compute_pipeline);
-            compute_pass.dispatch_workgroups(
-                self.inner_state.output_size.width,
-                self.inner_state.output_size.height,
-                1,
-            )
+            self.inner_state.rasterizer.run_compute(
+                &mut encoder,
+                self.inner_state.output_size().width,
+                self.inner_state.output_size().width,
+            );
         }
 
         encoder.copy_texture_to_buffer(
