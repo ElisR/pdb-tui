@@ -29,6 +29,7 @@ pub enum GlyphError {
 }
 
 /// Holds all the intensity matrices for all the printable ASCII characters
+#[derive(Debug)]
 pub struct GlyphMatrix {
     /// Character that this glyph represents
     #[allow(dead_code)]
@@ -172,6 +173,7 @@ impl GlyphMatrix {
     }
 }
 
+#[derive(Debug)]
 pub struct AsciiMatrices {
     #[allow(dead_code)]
     // TODO Make these private and make getters
@@ -265,6 +267,9 @@ impl AsciiMatrices {
             None => ' ',
         }
     }
+
+    // TODO Write this function
+    pub fn as_buffer(&self)
 }
 
 #[cfg(test)]

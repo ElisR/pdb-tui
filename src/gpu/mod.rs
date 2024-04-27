@@ -11,6 +11,7 @@ use model::Vertex;
 use crate::gpu::input::UnifiedEvent;
 
 pub mod camera;
+pub mod fancy_rasterizer;
 pub mod input;
 pub mod instance;
 pub mod model;
