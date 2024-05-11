@@ -79,3 +79,26 @@ fn compute_ssim(
     let ssim_texel = vec4<f32>(0.5, 0.5, 0.5, this_ssim);
     textureStore(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, workgroup_id.z), ssim_texel);
 }
+
+
+// NOTE Number of workgroups for z axis should still be 1 when dispatching
+@compute @workgroup_size(1, 1, 1)
+fn ascii_from_ssim(
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
+) {
+    var best_ssim: f32 = 0.0;
+    var best_ascii: u32 = 0u; // Will correspond to ' ' later
+    // var best_ascii: u32 = 1u; // Will correspond to '!' later
+    for (var i: u32 = 0u; i < NUM_ASCII; i++) {
+        let ssim = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, i)).w;
+        if ssim > best_ssim {
+            best_ssim = ssim;
+            best_ascii = i;
+        }
+    }
+    let ascii = best_ascii + ASCII_START;
+
+    let ssim_texel = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, best_ascii));
+    let out_texel = vec4<u32>(u32(255.0 * ssim_texel.x), u32(255.0 * ssim_texel.y), u32(255.0 * ssim_texel.z), ascii);
+    textureStore(output_texture, vec2<u32>(workgroup_id.xy), out_texel);
+}
