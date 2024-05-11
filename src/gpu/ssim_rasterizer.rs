@@ -201,40 +201,31 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
                 ],
                 push_constant_ranges: &[],
             });
+
+        let ssim_shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Compute SSIM Shader Source"),
+            source: wgpu::ShaderSource::Wgsl(
+                format!(
+                    "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
+                    grid_size.width(),
+                    grid_size.height(),
+                    include_str!("compute_ssim.wgsl")
+                )
+                .into(),
+            ),
+        });
         let compute_ssim_pipeline =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Compute SSIM Pipeline Descriptor"),
                 layout: Some(&compute_pipeline_layout),
-                module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Compute SSIM Shader Source"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        format!(
-                            "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
-                            grid_size.width(),
-                            grid_size.height(),
-                            include_str!("compute_ssim.wgsl")
-                        )
-                        .into(),
-                    ),
-                }),
+                module: &ssim_shader_module,
                 entry_point: "compute_ssim",
             });
         let compute_ascii_pipeline =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Compute ASCII Pipeline Descriptor"),
                 layout: Some(&compute_pipeline_layout),
-                module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Compute ASCII Shader Source"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        format!(
-                            "const grid_width: u32 = {}u;\nconst grid_height: u32 = {}u;\n{}",
-                            grid_size.width(),
-                            grid_size.height(),
-                            include_str!("ssim_ascii.wgsl")
-                        )
-                        .into(),
-                    ),
-                }),
+                module: &ssim_shader_module,
                 entry_point: "ascii_from_ssim",
             });
 
