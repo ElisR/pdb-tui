@@ -269,20 +269,6 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
             ],
         });
 
-        self.ssim_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("SSIM Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::Rgba8Unorm,
-                        view_dimension: wgpu::TextureViewDimension::D3,
-                    },
-                    count: None, // We do not need a count because we are not using an array of textures, just a 3D texture
-                }],
-            });
         self.ssim_texture = device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: output_size.width,
@@ -291,9 +277,9 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
             },
             mip_level_count: 1,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: Self::OUTPUT_FORMAT,
-            view_formats: &[], // NOTE This may be incorrect and needs to be checked
+            dimension: wgpu::TextureDimension::D3,
+            format: Self::SSIM_FORMAT,
+            view_formats: &[],
             usage: wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("SSIM Texture"),
         });
