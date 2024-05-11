@@ -8,6 +8,8 @@ use crate::gpu::{
     InnerState, State,
 };
 
+use super::ssim_rasterizer::FancyGPURasterizer;
+
 const FONT_ASPECT_RATIO: f32 = 2.0;
 
 #[derive(Debug, Clone, Copy)]
@@ -42,7 +44,7 @@ impl ValidGridSize {
 }
 
 #[derive(Debug)]
-pub struct WindowlessState {
+pub struct WindowlessState<const W: usize, const H: usize> {
     pub output_size: winit::dpi::PhysicalSize<u32>,
     pub output_buffer: wgpu::Buffer,
     pub output_image: Vec<u8>,
@@ -50,10 +52,11 @@ pub struct WindowlessState {
     pub intermediate_texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub intermediate_view: wgpu::TextureView,
-    pub rasterizer: BasicGPURasterizer,
+    // pub rasterizer: BasicGPURasterizer,
+    pub rasterizer: FancyGPURasterizer<W, H>,
 }
 
-impl WindowlessState {
+impl<const W: usize, const H: usize> WindowlessState<W, H> {
     const U32_SIZE: u32 = std::mem::size_of::<u32>() as u32;
     // TODO Remove these and refer to the GPU rasterizer version
     const INTERMEDIATE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
@@ -125,7 +128,9 @@ impl WindowlessState {
         let output_image_size = output_size.width as usize * output_size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
-        let rasterizer = BasicGPURasterizer::new(grid_size, device, &intermediate_view, &view);
+        // let rasterizer = BasicGPURasterizer::new(grid_size, device, &intermediate_view, &view);
+        let rasterizer =
+            FancyGPURasterizer::new(grid_size, output_size, device, &intermediate_view, &view);
 
         Self {
             output_size,
@@ -140,7 +145,7 @@ impl WindowlessState {
     }
 }
 
-impl InnerState for WindowlessState {
+impl<const W: usize, const H: usize> InnerState for WindowlessState<W, H> {
     fn output_size(&self) -> PhysicalSize<u32> {
         self.output_size
     }
@@ -200,7 +205,7 @@ impl InnerState for WindowlessState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::INTERMEDIATE_FORMAT,
+            format: Self::OUTPUT_FORMAT,
             view_formats: &[], // NOTE This may be incorrect and needs to be checked
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Windowless Output Texture"),
@@ -213,12 +218,12 @@ impl InnerState for WindowlessState {
         // TODO Move bind group creation to separate function
 
         self.rasterizer
-            .resize(device, &self.intermediate_view, &self.view);
+            .resize(new_size, device, &self.intermediate_view, &self.view);
         // TODO Work out logic for new offset
     }
 }
 
-impl State<WindowlessState> {
+impl<const W: usize, const H: usize> State<WindowlessState<W, H>> {
     pub async fn new(output_size: PhysicalSize<u32>, grid_size: PhysicalSize<u32>) -> Self {
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
@@ -297,11 +302,9 @@ impl State<WindowlessState> {
             );
         }
         {
-            self.inner_state.rasterizer.run_compute(
-                &mut encoder,
-                self.inner_state.output_size().width,
-                self.inner_state.output_size().width,
-            );
+            self.inner_state
+                .rasterizer
+                .run_compute(&mut encoder, self.inner_state.output_size());
         }
 
         encoder.copy_texture_to_buffer(
@@ -317,9 +320,9 @@ impl State<WindowlessState> {
                     offset: 0,
                     // Check that this isn't meant to be 4 `u8`s rather than 1 `u32`
                     bytes_per_row: Some({
-                        let bytes =
-                            WindowlessState::U32_SIZE * self.inner_state.output_size().width;
-                        WindowlessState::pad_bytes_to_256(bytes)
+                        let bytes = WindowlessState::<W, H>::U32_SIZE
+                            * self.inner_state.output_size().width;
+                        WindowlessState::<W, H>::pad_bytes_to_256(bytes)
                     }),
                     rows_per_image: Some(self.inner_state.output_size().height),
                 },
@@ -357,13 +360,13 @@ impl State<WindowlessState> {
             .inner_state
             .output_image
             .chunks(
-                WindowlessState::U32_SIZE as usize
-                    * WindowlessState::pad_width_to_64(self.inner_state.output_size().width)
+                WindowlessState::<W, H>::U32_SIZE as usize
+                    * WindowlessState::<W, H>::pad_width_to_64(self.inner_state.output_size().width)
                         as usize,
             )
             .flat_map(|row| {
                 row.iter().take(
-                    WindowlessState::U32_SIZE as usize
+                    WindowlessState::<W, H>::U32_SIZE as usize
                         * self.inner_state.output_size().width as usize,
                 )
             })
@@ -381,7 +384,7 @@ impl State<WindowlessState> {
         let now_string = now.format("%H:%M:%S").to_string();
         let path = format!("from_inner_state_{}.png", now_string);
         let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
-            WindowlessState::pad_width_to_64(self.inner_state.render_size().width),
+            WindowlessState::<1, 2>::pad_width_to_64(self.inner_state.render_size().width),
             self.inner_state.render_size().height,
             &self.inner_state.output_image[..],
         )

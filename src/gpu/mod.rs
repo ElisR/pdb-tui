@@ -11,13 +11,13 @@ use model::Vertex;
 use crate::gpu::input::UnifiedEvent;
 
 pub mod camera;
-pub mod fancy_rasterizer;
 pub mod input;
 pub mod instance;
 pub mod model;
 pub mod resources;
 pub mod run_tui;
 pub mod run_windowed;
+pub mod ssim_rasterizer;
 pub mod state_windowed;
 pub mod state_windowless;
 pub mod texture;
