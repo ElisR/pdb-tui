@@ -4,7 +4,6 @@
 #[allow(unused_imports)]
 use crate::{
     basic_rasterizer::BasicAsciiRasterizer,
-    fancy_rasterizer::FancyAsciiRasterizer,
     rasterizer::{ColoredChar, Rasterizer},
     render::Canvas,
     scene::Scene,
