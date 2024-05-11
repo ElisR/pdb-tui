@@ -1,4 +1,5 @@
 //! Calculating SSIM metrics used for glyph lookup
+// TODO Deprecate this function or delete it because it's just not practical to generate its input on CPU anyway
 use thiserror::Error;
 
 #[derive(Error, Debug)]

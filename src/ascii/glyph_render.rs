@@ -2,12 +2,14 @@
 use ab_glyph::{point, Font, FontRef, Glyph, OutlinedGlyph};
 use core::f32;
 use image::{ImageBuffer, Rgba};
-use std::collections::HashMap;
-use thiserror::Error;
+use std::collections::BTreeMap;
 
-use crate::ascii::ssim::{ssim, SsimError};
+// TODO See if this can be made a structure constant even when AsciiMatrices is generic
+// TODO Check if it is actually this number
+pub const NUM_ASCII_MATRICES: usize = 95;
 
 // TODO Make this into a sensible function
+// TODO Also put this in the resources of the package
 pub fn get_font() -> impl Font {
     FontRef::try_from_slice(include_bytes!("../../data/FiraCode-Regular.ttf")).unwrap()
 }
@@ -22,26 +24,50 @@ pub fn get_ascii_from_font<F: Font>(font: &F, grid_size: u32) -> Vec<Glyph> {
         .collect()
 }
 
-#[derive(Error, Debug)]
-pub enum GlyphError {
-    #[error("Pixel is not within the ranges of the glyph.")]
-    PixelOutOfRange { x: usize, y: usize },
+/// Struct holding mean and standard deviation statistics
+/// Needed because of alignment requirements when passing uniform to GPU
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct AsciiStats {
+    /// Mean intensity
+    pub mu: f32,
+    /// Standard deviation of intensity
+    pub sigma: f32,
+    _padding1: f32,
+    _padding2: f32,
+}
+
+/// Struct holding padded float
+/// Choosing to pad rather than pack data and have complicated indices
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct AsciiPixelPadded {
+    pub intensity: f32,
+    _padding1: f32,
+    _padding2: f32,
+    _padding3: f32,
+}
+
+impl From<f32> for AsciiPixelPadded {
+    fn from(value: f32) -> Self {
+        Self {
+            intensity: value,
+            _padding1: 0.0,
+            _padding2: 0.0,
+            _padding3: 0.0,
+        }
+    }
 }
 
 /// Holds all the intensity matrices for all the printable ASCII characters
+/// `W` and `H` are the number of horizontal and vertical pixels assigned to one glyph
 #[derive(Debug)]
-pub struct GlyphMatrix {
+pub struct GlyphMatrix<const W: usize, const H: usize> {
     /// Character that this glyph represents
     #[allow(dead_code)]
     symbol: char,
-    /// Number of horizontal pixels assigned to one glyph
-    width: usize,
-    /// Number of vertical pixels assigned to one glyph
-    height: usize,
     /// 2D array holding the intensity values across the grid
-    // TODO Consider changing this to an array directly
-    // NOTE That may require a constant annotation in the generic type
-    matrix: Vec<f32>,
+    matrix: [[f32; W]; H],
     /// Glyph outline that can be drawn
     glyph_outline: Option<OutlinedGlyph>,
     /// Vertical offset required to move glyph to center
@@ -50,69 +76,50 @@ pub struct GlyphMatrix {
     h_offset: Option<usize>,
 }
 
-impl GlyphMatrix {
-    pub fn new<F: Font>(font: &F, symbol: char, width: usize, height: usize) -> Self {
-        let glyph = font.glyph_id(symbol).with_scale(height as f32);
+impl<const W: usize, const H: usize> GlyphMatrix<W, H> {
+    pub fn new<F: Font>(font: &F, symbol: char) -> Self {
+        let glyph = font.glyph_id(symbol).with_scale(H as f32);
         let glyph_outline = font.outline_glyph(glyph);
         let mut v_offset = None;
         let mut h_offset = None;
         // By default, fill in the matrix with characters that haven't been positioned properly
-        let mut default_matrix = vec![0f32; width * height];
+        let mut default_matrix = [[0f32; W]; H];
         if let Some(go) = &glyph_outline {
             v_offset = Some(0usize);
             h_offset = Some(0usize);
             go.draw(|x, y, c| {
-                let idx = Self::pixel_to_index(x as usize, y as usize, width, height);
-                if let Ok(idx) = idx {
-                    default_matrix[idx] = c;
-                }
+                // FIXME Be careful of out of bounds errors here
+                default_matrix[y as usize][x as usize] = c;
             });
         }
         Self {
             symbol,
-            width,
-            height,
             glyph_outline,
             v_offset,
             h_offset,
             matrix: default_matrix,
         }
     }
-    /// Converting from x, y locations to 1D index
-    #[inline]
-    fn pixel_to_index(
-        x: usize,
-        y: usize,
-        width: usize,
-        height: usize,
-    ) -> Result<usize, GlyphError> {
-        if x < width && y < height {
-            Ok(y * width + x)
-        } else {
-            Err(GlyphError::PixelOutOfRange { x, y })
-        }
+    pub fn width(&self) -> usize {
+        W
+    }
+    pub fn height(&self) -> usize {
+        H
     }
     /// Get the value of a pixel
     fn get_pixel(&self, x: usize, y: usize) -> Option<f32> {
-        let idx = Self::pixel_to_index(x, y, self.width, self.height);
-        match idx {
-            Ok(i) => Some(self.matrix[i]),
-            Err(_) => None,
+        if x < W && y < H {
+            Some(self.matrix[y][x])
+        } else {
+            None
         }
     }
     fn update_matrix(&mut self) {
-        self.matrix = vec![0f32; self.width * self.height];
+        self.matrix = [[0f32; W]; H];
         if let Some(go) = self.glyph_outline.as_ref() {
             go.draw(|x, y, c| {
-                let idx = Self::pixel_to_index(
-                    x as usize + self.h_offset.unwrap(),
-                    y as usize + self.v_offset.unwrap(),
-                    self.width,
-                    self.height,
-                );
-                if let Ok(idx) = idx {
-                    self.matrix[idx] = 1.0 - c;
-                }
+                // FIXME Be careful about out of bounds errors here
+                self.matrix[y as usize][x as usize] = 1.0 - c;
             });
         }
     }
@@ -151,7 +158,7 @@ impl GlyphMatrix {
         self.glyph_outline.as_ref().map(|go| go.px_bounds().width())
     }
     pub fn save(&self) {
-        let img = ImageBuffer::from_fn(self.width as u32, self.height as u32, |x, y| {
+        let img = ImageBuffer::from_fn(W as u32, H as u32, |x, y| {
             Rgba([
                 0,
                 0,
@@ -168,36 +175,52 @@ impl GlyphMatrix {
         let filename = format!("characters/{:?}_character.png", glyph_id);
         img.save(filename).unwrap();
     }
-    pub fn ssim(&self, reference_matrix: &[f32]) -> Result<f32, SsimError> {
-        ssim(&self.matrix, reference_matrix)
+    /// Calculate the mean of the ASCII matrix
+    fn mean(&self) -> f32 {
+        let sum: f32 = self.matrix.iter().flatten().sum();
+        sum / (W as f32 * H as f32)
+    }
+    /// Calculate the standard deviation of the ASCII matrix
+    fn std(&self) -> f32 {
+        // TODO Double check this formula, you idiot
+        let sum_squares: f32 = self.matrix.iter().flatten().map(|f| (*f) * (*f)).sum();
+        (sum_squares / (W as f32 * H as f32)).sqrt()
+    }
+    /// Calculate both mean and standard deviation of the ASCII matrix
+    pub fn stats(&self) -> AsciiStats {
+        AsciiStats {
+            mu: self.mean(),
+            sigma: self.std(),
+            _padding1: 0.0,
+            _padding2: 0.0,
+        }
+    }
+    /// Calculate a padded version of the matrix for WebGPU
+    /// Even though it creates new data, the ASCII matrices still won't be very large: <1MiB for 95 x 16x32 grids
+    pub fn padded_matrix(&self) -> [[AsciiPixelPadded; W]; H] {
+        self.matrix.map(|row| row.map(|v| v.into()))
     }
 }
 
 #[derive(Debug)]
-pub struct AsciiMatrices {
-    #[allow(dead_code)]
-    // TODO Make these private and make getters
-    pub width: usize,
-    pub height: usize,
-    glyph_matrices: HashMap<char, GlyphMatrix>,
+pub struct AsciiMatrices<const W: usize, const H: usize> {
+    // There may be performance hit from not using `HashMap`, but choose convenience of being sorted
+    glyph_matrices: BTreeMap<char, GlyphMatrix<W, H>>,
 }
 
-impl AsciiMatrices {
+impl<const W: usize, const H: usize> AsciiMatrices<W, H> {
     /// Bare constructor for glyph matrices
-    /// Note that after construction, glyph matrices will not be centered, so should call `v_center()` on struct
-    pub fn new<F: Font>(font: &F, width: usize, height: usize) -> Self {
+    /// Will do horizontal and vertical centering
+    pub fn new<F: Font>(font: &F) -> Self {
+        // TODO Define this range near the constants
         let ascii_symbols: Vec<char> = (32..=126u8).map(|i| i as char).collect();
-        let mut glyph_matrices = HashMap::new();
+        let mut glyph_matrices = BTreeMap::new();
         for symbol in ascii_symbols.into_iter() {
-            let glyph_matrix = GlyphMatrix::new(font, symbol, width, height);
+            let glyph_matrix = GlyphMatrix::<W, H>::new(font, symbol);
 
             glyph_matrices.insert(symbol, glyph_matrix);
         }
-        let mut out = Self {
-            width,
-            height,
-            glyph_matrices,
-        };
+        let mut out = Self { glyph_matrices };
         out.v_center();
         out.h_center();
         out
@@ -224,7 +247,7 @@ impl AsciiMatrices {
             .map(|(o, h)| h + o as f32)
             .reduce(f32::max)
             .unwrap();
-        let v_global_offset = (((self.height as f32) - new_bottom) / 2.0) as usize;
+        let v_global_offset = (((H as f32) - new_bottom) / 2.0) as usize;
 
         for (_, gm) in self.glyph_matrices.iter_mut() {
             if !gm.is_blank() {
@@ -255,21 +278,25 @@ impl AsciiMatrices {
             gm.save()
         }
     }
-    /// Loop through all ASCII characters and pick the best symbol
-    pub fn pick_best_symbol(&self, chunk: &[f32]) -> char {
-        let best_ssim_value = self
-            .glyph_matrices
-            .iter()
-            .map(|(c, gm)| (c, gm.ssim(chunk).unwrap_or(std::f32::NEG_INFINITY)))
-            .max_by(|x, y| x.1.total_cmp(&y.1));
-        match best_ssim_value {
-            Some((c, _)) => *c,
-            None => ' ',
-        }
+    /// Export the ASCII matrices as a 3D texture
+    pub fn padded_matrix_list(&self) -> [[[AsciiPixelPadded; W]; H]; NUM_ASCII_MATRICES] {
+        self.glyph_matrices
+            .values()
+            .map(|gm| gm.padded_matrix())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
     }
-
-    // TODO Write this function
-    pub fn as_buffer(&self)
+    /// Calculate the mean and standard deviation of every ASCII matrix
+    /// Useful for the rasterizer which uses SSIM
+    pub fn matrix_stats(&self) -> [AsciiStats; NUM_ASCII_MATRICES] {
+        self.glyph_matrices
+            .values()
+            .map(|gm| gm.stats())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -279,22 +306,15 @@ mod tests {
     #[test]
     fn test_draw_chars() {
         let font = get_font();
-        let grid_size = 120usize;
+        const GRID_WIDTH: usize = 16;
+        const GRID_HEIGHT: usize = 32;
 
-        let ascii_matrices = AsciiMatrices::new(&font, grid_size / 2, grid_size);
+        let ascii_matrices = AsciiMatrices::<GRID_WIDTH, GRID_HEIGHT>::new(&font);
         assert!(!ascii_matrices.glyph_matrices.is_empty());
 
-        let rand = ascii_matrices.glyph_matrices.get(&'a');
+        assert_eq!(ascii_matrices.glyph_matrices.len(), NUM_ASCII_MATRICES);
 
-        match rand {
-            Some(gm) => {
-                let val = gm.ssim(&gm.matrix);
-                // FIXME Work out why the same character isn't giving 1.0 for itself
-                assert!(val.unwrap() > 0.5f32)
-            }
-            None => {
-                panic!();
-            }
-        }
+        // let rand = ascii_matrices.glyph_matrices.get(&'a');
+        // TODO Write some check using this
     }
 }

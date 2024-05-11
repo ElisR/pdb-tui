@@ -2,6 +2,7 @@
 
 use crate::gpu::state_windowless::ValidGridSize;
 use wgpu::TextureView;
+use winit::dpi::PhysicalSize;
 
 // TODO Put the functionality for loading up the shader and grid size into here
 
@@ -108,7 +109,7 @@ impl BasicGPURasterizer {
         output_view: &TextureView,
     ) {
         self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bing Group"),
+            label: Some("Compute Bind Group"),
             layout: &self.compute_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -126,8 +127,7 @@ impl BasicGPURasterizer {
     pub fn run_compute(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        output_width: u32,
-        output_height: u32,
+        output_size: PhysicalSize<u32>,
     ) {
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Compute Pass"),
@@ -136,7 +136,7 @@ impl BasicGPURasterizer {
 
         compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
         compute_pass.set_pipeline(&self.compute_pipeline);
-        compute_pass.dispatch_workgroups(output_width, output_height, 1)
+        compute_pass.dispatch_workgroups(output_size.width, output_size.height, 1)
     }
 
     fn input_format(&self) -> wgpu::TextureFormat {
