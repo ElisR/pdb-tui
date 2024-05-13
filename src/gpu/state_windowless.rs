@@ -4,11 +4,10 @@ use winit::dpi::PhysicalSize;
 
 use crate::gpu::{
     model::{DrawLight, DrawModel},
+    ssim_rasterizer::FancyGPURasterizer,
     trivial_rasterizer::BasicGPURasterizer,
     InnerState, State,
 };
-
-use super::ssim_rasterizer::FancyGPURasterizer;
 
 const FONT_ASPECT_RATIO: f32 = 2.0;
 
@@ -52,8 +51,8 @@ pub struct WindowlessState<const W: usize, const H: usize> {
     pub intermediate_texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub intermediate_view: wgpu::TextureView,
-    // pub rasterizer: BasicGPURasterizer,
-    pub rasterizer: FancyGPURasterizer<W, H>,
+    pub rasterizer: BasicGPURasterizer,
+    // pub rasterizer: FancyGPURasterizer<W, H>,
 }
 
 impl<const W: usize, const H: usize> WindowlessState<W, H> {
@@ -128,9 +127,9 @@ impl<const W: usize, const H: usize> WindowlessState<W, H> {
         let output_image_size = output_size.width as usize * output_size.height as usize * 4;
         let output_image = Vec::<u8>::with_capacity(output_image_size);
 
-        // let rasterizer = BasicGPURasterizer::new(grid_size, device, &intermediate_view, &view);
-        let rasterizer =
-            FancyGPURasterizer::new(grid_size, output_size, device, &intermediate_view, &view);
+        let rasterizer = BasicGPURasterizer::new(grid_size, device, &intermediate_view, &view);
+        // let rasterizer =
+        //     FancyGPURasterizer::new(grid_size, output_size, device, &intermediate_view, &view);
 
         Self {
             output_size,

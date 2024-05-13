@@ -112,7 +112,7 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D3,
             format: Self::SSIM_FORMAT,
-            view_formats: &[], // NOTE This may be incorrect and needs to be checked
+            view_formats: &[],
             usage: wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("SSIM Texture"),
         });
@@ -135,7 +135,7 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
         let ascii_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("ASCII Matrix Buffer"),
             contents: bytemuck::cast_slice(&[ascii_matrix_raw]),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::STORAGE,
         });
         let ascii_stats_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("ASCII Means Buffer"),
@@ -149,7 +149,7 @@ impl<const W: usize, const H: usize> FancyGPURasterizer<W, H> {
                         binding: 0,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
