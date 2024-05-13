@@ -23,14 +23,14 @@ struct AsciiPixel {
 @group(0) @binding(0) var input_texture: texture_storage_2d<rgba8unorm, read>;
 @group(0) @binding(1) var output_texture: texture_storage_2d<rgba8uint, write>;
 
-// TODO Need to find out if this can be written and stored to
 /// Holding the scores for all of the ASCII glyphs
 @group(1) @binding(0) var ssim_texture: texture_storage_3d<rgba8unorm, read_write>;
 
+// FIXME Uniform is not allowed to be very big, so will have to change this to storage
 @group(2) @binding(0)
-var<uniform> ascii_matrices: array<array<AsciiPixel, grid_size>, NUM_ASCII>;
+var<storage, read> ascii_matrices: array<array<AsciiPixel, grid_size>, NUM_ASCII>;
 
-// Storing the mean and standard deviation of each ASCII character since these will never change
+/// Storing the mean and standard deviation of each ASCII character since these will never change
 @group(2) @binding(1)
 var<uniform> ascii_stats: array<AsciiStats, NUM_ASCII>;
 
@@ -73,11 +73,22 @@ fn compute_ssim(
     let mu_grid = grid_mean;
     let sigma_grid = sqrt(grid_squared_mean);
     let sigma_grid_ascii = grid_ascii_mean - mu_grid * ascii_stat.mu;
-    let this_ssim = ssim(grid_mean, ascii_stat.mu, sigma_grid, ascii_stat.sigma, sigma_grid_ascii);
+    // FIXME Swap back to let after debugging 
+    var this_ssim: f32 = ssim(grid_mean, ascii_stat.mu, sigma_grid, ascii_stat.sigma, sigma_grid_ascii);
+    // NOTE This value is not being respected by the next compute shader
+    // if ascii_index == 3u {
+    //     this_ssim = 1.0;
+    // } else {
+    //     this_ssim = 0.0;
+    // }
 
     // TODO Need to pick the central colour
     let ssim_texel = vec4<f32>(0.5, 0.5, 0.5, this_ssim);
-    textureStore(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, workgroup_id.z), ssim_texel);
+    textureStore(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, ascii_index), ssim_texel);
+
+    // // FIXME Swap back after debugging
+    // let out_texel = vec4<u32>(u32(255.0 * ssim_texel.x), u32(255.0 * ssim_texel.y), u32(255.0 * ssim_texel.z), 33u + u32(95.0 * this_ssim));
+    // textureStore(output_texture, vec2<u32>(workgroup_id.xy), out_texel);
 }
 
 
@@ -87,18 +98,18 @@ fn ascii_from_ssim(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
 ) {
     var best_ssim: f32 = 0.0;
-    var best_ascii: u32 = 0u; // Will correspond to ' ' later
-    // var best_ascii: u32 = 1u; // Will correspond to '!' later
-    for (var i: u32 = 0u; i < NUM_ASCII; i++) {
-        let ssim = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, i)).w;
+    var best_index: u32 = 0u; // Will correspond to ' ' later
+    // var best_index: u32 = 1u; // Will correspond to '!' later
+    for (var ascii_index: u32 = 0u; ascii_index < NUM_ASCII; ascii_index++) {
+        let ssim = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, ascii_index)).w;
         if ssim > best_ssim {
             best_ssim = ssim;
-            best_ascii = i;
+            best_index = ascii_index;
         }
     }
-    let ascii = best_ascii + ASCII_START;
+    let ascii_char = best_index + ASCII_START;
 
-    let ssim_texel = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, best_ascii));
-    let out_texel = vec4<u32>(u32(255.0 * ssim_texel.x), u32(255.0 * ssim_texel.y), u32(255.0 * ssim_texel.z), ascii);
+    let ssim_texel = textureLoad(ssim_texture, vec3<u32>(workgroup_id.x, workgroup_id.y, best_index));
+    let out_texel = vec4<u32>(u32(255.0 * ssim_texel.x), u32(255.0 * ssim_texel.y), u32(255.0 * ssim_texel.z), ascii_char);
     textureStore(output_texture, vec2<u32>(workgroup_id.xy), out_texel);
 }

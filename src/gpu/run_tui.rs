@@ -44,11 +44,11 @@ pub async fn run_new() -> Result<()> {
 
     let width = terminal.size()?.width as u32;
     let height = terminal.size()?.height as u32;
-    let mut state = State::<WindowlessState<2, 4>>::new(
+    let mut state = State::<WindowlessState<1, 1>>::new(
         PhysicalSize { width, height },
         PhysicalSize {
-            width: 2,
-            height: 4,
+            width: 1,
+            height: 1,
         },
     )
     .await;

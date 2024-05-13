@@ -104,6 +104,7 @@ impl BasicGPURasterizer {
 
     pub fn resize(
         &mut self,
+        _output_size: PhysicalSize<u32>,
         device: &wgpu::Device,
         input_view: &TextureView,
         output_view: &TextureView,
