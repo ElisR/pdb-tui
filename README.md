@@ -17,6 +17,8 @@ cd pdb-tui
 cargo run --release --bin pdb_gpu_tui
 ```
 
+This is tested as working on M1 MacBooks with Metal, and should work on Linux through Vulkan or Windows through DirectX12.
+
 > [!WARNING]
 >
 > This repository is a work in progress.
