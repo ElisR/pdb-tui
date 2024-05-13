@@ -36,7 +36,11 @@ pub fn startup() -> Result<()> {
 }
 
 pub async fn run_new() -> Result<()> {
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    let file_appender = tracing_appender::rolling::hourly("logging", "ssim_gpu.log");
+    tracing_subscriber::fmt()
+        .with_max_level(Level::INFO)
+        .with_writer(file_appender)
+        .init();
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
