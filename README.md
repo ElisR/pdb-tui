@@ -23,3 +23,7 @@ This is tested as working on M1 MacBooks with Metal, and should work on Linux th
 >
 > This repository is a work in progress.
 > Now that the rendering code is functional, many features need to be added to make this a useful tool.
+
+
+https://github.com/ElisR/pdb-tui/assets/19764906/b99c0c24-6bd5-4a26-b858-35e678f79210
+
