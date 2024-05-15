@@ -3,9 +3,9 @@ use std::iter;
 use winit::dpi::PhysicalSize;
 
 use crate::gpu::{
+    basic_rasterizer::BasicGPURasterizer,
     model::{DrawLight, DrawModel},
     ssim_rasterizer::FancyGPURasterizer,
-    trivial_rasterizer::BasicGPURasterizer,
     InnerState, State,
 };
 

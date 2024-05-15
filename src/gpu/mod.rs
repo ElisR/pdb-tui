@@ -10,6 +10,7 @@ use model::Vertex;
 
 use crate::gpu::input::UnifiedEvent;
 
+pub mod basic_rasterizer;
 pub mod camera;
 pub mod input;
 pub mod instance;
@@ -21,7 +22,6 @@ pub mod ssim_rasterizer;
 pub mod state_windowed;
 pub mod state_windowless;
 pub mod texture;
-pub mod trivial_rasterizer;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
